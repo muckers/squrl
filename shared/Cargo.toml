@@ -1,0 +1,20 @@
+[package]
+name = "squrl-shared"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aws-sdk-dynamodb = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+validator = { workspace = true }
+regex = { workspace = true }
+lazy_static = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"

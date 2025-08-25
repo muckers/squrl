@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'URL Shortener Service'
+
+Resources:
+  # DynamoDB Table
+  UrlTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: urls
+      BillingMode: PAY_PER_REQUEST  # On-demand capacity
+      AttributeDefinitions:
+        - AttributeName: short_code
+          AttributeType: S
+        - AttributeName: original_url
+          AttributeType: S
+      KeySchema:
+        - AttributeName: short_code
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: original_url-index
+          KeySchema:
+            - AttributeName: original_url
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # IAM Role for Lambda functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt UrlTable.Arn
+                  - !Join ['', [!GetAtt UrlTable.Arn, '/index/*']]
+
+  # Lambda Functions
+  ShortenFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: url-shortener-create
+      Runtime: provided.al2
+      Handler: bootstrap
+      Code:
+        S3Bucket: your-deployment-bucket
+        S3Key: function.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          HANDLER_TYPE: shorten
+          DYNAMODB_TABLE: !Ref UrlTable
+      MemorySize: 128
+      Timeout: 30
+
+  LookupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: url-shortener-lookup
+      Runtime: provided.al2
+      Handler: bootstrap
+      Code:
+        S3Bucket: your-deployment-bucket
+        S3Key: function.zip
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          HANDLER_TYPE: lookup
+          DYNAMODB_TABLE: !Ref UrlTable
+      MemorySize: 128
+      Timeout: 30
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: url-shortener-api
+      ProtocolType: HTTP
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref ApiGateway
+      StageName: $default
+      AutoDeploy: true
+
+  # API Gateway Routes
+  ShortenRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: 'POST /shorten'
+      Target: !Join ['/', ['integrations', !Ref ShortenIntegration]]
+
+  LookupRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: 'GET /{code}'
+      Target: !Join ['/', ['integrations', !Ref LookupIntegration]]
+
+  # Lambda Integrations
+  ShortenIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGateway
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      IntegrationUri: !GetAtt ShortenFunction.Arn
+
+  LookupIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGateway
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      IntegrationUri: !GetAtt LookupFunction.Arn
+
+  # Lambda Permissions for API Gateway
+  ShortenPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ShortenFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join ['', [!GetAtt ApiGateway.Arn, '/*/*']]
+
+  LookupPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LookupFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join ['', [!GetAtt ApiGateway.Arn, '/*/*']]
+
+Outputs:
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !GetAtt ApiGateway.ApiEndpoint
+
+  DynamoDBTable:
+    Description: 'DynamoDB table name'
+    Value: !Ref UrlTable

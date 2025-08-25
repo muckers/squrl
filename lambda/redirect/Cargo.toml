@@ -1,0 +1,31 @@
+[package]
+name = "redirect"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lambda_runtime = { workspace = true }
+lambda-web = { workspace = true }
+tokio = { workspace = true }
+
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-sdk-kinesis = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+url = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+squrl-shared = { path = "../../shared" }
+
+[dev-dependencies]
+tokio-test = "0.4"
