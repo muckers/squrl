@@ -204,17 +204,38 @@ dev-logs:
 
 # List all dev environment resources
 dev-status:
-    @echo "📊 Dev Environment Status"
-    @echo "========================"
-    @echo ""
-    @echo "Lambda Functions:"
-    @aws lambda list-functions --region us-east-1 | jq -r '.Functions[] | select(.FunctionName | contains("squrl")) | select(.FunctionName | contains("dev")) | "  - \(.FunctionName) (\(.Runtime), \(.MemorySize)MB, \(.Timeout)s)"'
-    @echo ""
-    @echo "DynamoDB Tables:"
-    @aws dynamodb list-tables --region us-east-1 | jq -r '.TableNames[] | select(. | contains("squrl")) | select(. | contains("dev")) | "  - \(.)"'
-    @echo ""
-    @echo "Kinesis Streams:"
-    @aws kinesis list-streams --region us-east-1 | jq -r '.StreamNames[] | select(. | contains("squrl")) | select(. | contains("dev")) | "  - \(.)"'
+    #!/bin/bash
+    echo "📊 Dev Environment Status"
+    echo "========================"
+    echo ""
+    echo "🔄 Refreshing Terraform State..."
+    pushd terraform/environments/dev > /dev/null 2>&1
+    if terraform refresh > /dev/null 2>&1; then
+        echo "✅ State refreshed"
+    else
+        echo "⚠️  Failed to refresh state"
+    fi
+    echo ""
+    echo "📋 Terraform Resources:"
+    RESOURCES=$(terraform show -json 2>/dev/null | jq -r '
+        [.values.root_module.resources[]?, (.values.root_module.child_modules[]?.resources[]?)] 
+        | map("  - \(.type)/\(.name) (\(.mode))")
+        | join("\n")' 2>/dev/null)
+    if [ -n "$RESOURCES" ]; then
+        echo "$RESOURCES"
+    else
+        echo "  ⚠️  No terraform state found"
+    fi
+    popd > /dev/null 2>&1
+    echo ""
+    echo "Lambda Functions:"
+    aws lambda list-functions --region us-east-1 | jq -r '.Functions[] | select(.FunctionName | contains("squrl")) | select(.FunctionName | contains("dev")) | "  - \(.FunctionName) (\(.Runtime), \(.MemorySize)MB, \(.Timeout)s)"'
+    echo ""
+    echo "DynamoDB Tables:"
+    aws dynamodb list-tables --region us-east-1 | jq -r '.TableNames[] | select(. | contains("squrl")) | select(. | contains("dev")) | "  - \(.)"'
+    echo ""
+    echo "Kinesis Streams:"
+    aws kinesis list-streams --region us-east-1 | jq -r '.StreamNames[] | select(. | contains("squrl")) | select(. | contains("dev")) | "  - \(.)"'
 
 # Clean build artifacts
 clean:
