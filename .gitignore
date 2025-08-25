@@ -1,3 +1,12 @@
 /target
 Cargo.lock
 
+.serena/
+localstack-data/
+urls.db
+target/
+*.zip
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
