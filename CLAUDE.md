@@ -8,7 +8,6 @@ This is a URL shortener prototype written in Rust with a serverless architecture
 - A shared library (`shared/`) with common models and utilities
 - AWS Lambda functions (`lambda/`) for create-url, redirect, and analytics operations
 - Terraform infrastructure configuration (`terraform/`) for AWS deployment
-- A local SQLite-based implementation in `src/main.rs` for development/testing
 - AWS CloudFormation template (`cf.yaml`) as an alternative deployment option
 - Architectural suggestions for scaling in `high-scale-suggestions.md`
 
@@ -81,9 +80,6 @@ just local-infra
 just run-local-create-url    # Port 9001
 just run-local-redirect      # Port 9002  
 just run-local-analytics     # Port 9003
-
-# Run the local SQLite version (for development)
-cargo run
 ```
 
 ### Deployment
@@ -99,7 +95,7 @@ just destroy-dev
 ```
 
 ### Database
-- **Local Development**: Uses SQLite with a local file `urls.db`
+- **Local Development**: Uses LocalStack with mock DynamoDB
 - **Production**: Uses AWS DynamoDB with Terraform-managed tables
 
 ## Key Implementation Details
