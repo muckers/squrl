@@ -1,13 +1,13 @@
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
   }
-  
+
   backend "s3" {
     bucket = "squrl-terraform-state"
     key    = "dev/terraform.tfstate"
@@ -19,16 +19,17 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Keep existing resources
 module "dynamodb" {
   source = "../../modules/dynamodb"
-  
+
   table_name  = "squrl-urls-${var.environment}"
   environment = var.environment
 }
 
 module "create_url_lambda" {
   source = "../../modules/lambda"
-  
+
   function_name       = "squrl-create-url-${var.environment}"
   lambda_zip_path     = "../../../target/lambda/create-url/bootstrap.zip"
   dynamodb_table_name = module.dynamodb.table_name
@@ -36,13 +37,13 @@ module "create_url_lambda" {
   memory_size         = 256
   timeout             = 10
   rust_log_level      = "info"
-  
+
   tags = local.common_tags
 }
 
 module "redirect_lambda" {
   source = "../../modules/lambda"
-  
+
   function_name       = "squrl-redirect-${var.environment}"
   lambda_zip_path     = "../../../target/lambda/redirect/bootstrap.zip"
   dynamodb_table_name = module.dynamodb.table_name
@@ -51,17 +52,17 @@ module "redirect_lambda" {
   memory_size         = 128
   timeout             = 5
   rust_log_level      = "info"
-  
+
   additional_env_vars = {
     KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
   }
-  
+
   tags = local.common_tags
 }
 
 module "analytics_lambda" {
   source = "../../modules/lambda"
-  
+
   function_name            = "squrl-analytics-${var.environment}"
   lambda_zip_path          = "../../../target/lambda/analytics/bootstrap.zip"
   dynamodb_table_name      = module.dynamodb.table_name
@@ -71,7 +72,7 @@ module "analytics_lambda" {
   memory_size              = 512
   timeout                  = 30
   rust_log_level           = "info"
-  
+
   tags = local.common_tags
 }
 
@@ -79,10 +80,10 @@ resource "aws_kinesis_stream" "analytics" {
   name             = "squrl-analytics-${var.environment}"
   shard_count      = 1
   retention_period = 24
-  
+
   encryption_type = "KMS"
   kms_key_id      = "alias/aws/kinesis"
-  
+
   tags = local.common_tags
 }
 
@@ -92,11 +93,278 @@ resource "aws_lambda_event_source_mapping" "analytics_kinesis" {
   starting_position = "LATEST"
 }
 
+# Simple API Gateway setup
+resource "aws_api_gateway_rest_api" "squrl" {
+  name        = "squrl-api-${var.environment}"
+  description = "Squrl URL Shortener API"
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
+
+  tags = local.common_tags
+}
+
+# Create resource
+resource "aws_api_gateway_resource" "create" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  parent_id   = aws_api_gateway_rest_api.squrl.root_resource_id
+  path_part   = "create"
+}
+
+# POST /create method
+resource "aws_api_gateway_method" "create_post" {
+  rest_api_id   = aws_api_gateway_rest_api.squrl.id
+  resource_id   = aws_api_gateway_resource.create.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "create_post" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_post.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.create_url_lambda.invoke_arn
+}
+
+# Lambda permission for API Gateway
+resource "aws_lambda_permission" "create_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = module.create_url_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.squrl.execution_arn}/*/*"
+}
+
+# Redirect resource for {short_code}
+resource "aws_api_gateway_resource" "redirect" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  parent_id   = aws_api_gateway_rest_api.squrl.root_resource_id
+  path_part   = "{short_code}"
+}
+
+# GET /{short_code} method
+resource "aws_api_gateway_method" "redirect_get" {
+  rest_api_id   = aws_api_gateway_rest_api.squrl.id
+  resource_id   = aws_api_gateway_resource.redirect.id
+  http_method   = "GET"
+  authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.short_code" = true
+  }
+}
+
+# HEAD /{short_code} method for URL checking
+resource "aws_api_gateway_method" "redirect_head" {
+  rest_api_id   = aws_api_gateway_rest_api.squrl.id
+  resource_id   = aws_api_gateway_resource.redirect.id
+  http_method   = "HEAD"
+  authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.short_code" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "redirect_get" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.redirect.id
+  http_method = aws_api_gateway_method.redirect_get.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.redirect_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "redirect_head" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.redirect.id
+  http_method = aws_api_gateway_method.redirect_head.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.redirect_lambda.invoke_arn
+}
+
+# Lambda permission for redirect API Gateway
+resource "aws_lambda_permission" "redirect_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeRedirect"
+  action        = "lambda:InvokeFunction"
+  function_name = module.redirect_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.squrl.execution_arn}/*/*"
+}
+
+# Stats resource
+resource "aws_api_gateway_resource" "stats" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  parent_id   = aws_api_gateway_rest_api.squrl.root_resource_id
+  path_part   = "stats"
+}
+
+# Stats short_code resource for /stats/{short_code}
+resource "aws_api_gateway_resource" "stats_short_code" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  parent_id   = aws_api_gateway_resource.stats.id
+  path_part   = "{short_code}"
+}
+
+# GET /stats/{short_code} method
+resource "aws_api_gateway_method" "stats_get" {
+  rest_api_id   = aws_api_gateway_rest_api.squrl.id
+  resource_id   = aws_api_gateway_resource.stats_short_code.id
+  http_method   = "GET"
+  authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.short_code" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "stats_get" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.stats_short_code.id
+  http_method = aws_api_gateway_method.stats_get.http_method
+
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.analytics_lambda.invoke_arn
+}
+
+# Lambda permission for stats API Gateway
+resource "aws_lambda_permission" "stats_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeStats"
+  action        = "lambda:InvokeFunction"
+  function_name = module.analytics_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.squrl.execution_arn}/*/*"
+}
+
+# Deploy API Gateway
+resource "aws_api_gateway_deployment" "main" {
+  depends_on = [
+    aws_api_gateway_integration.create_post,
+    aws_api_gateway_integration.redirect_get,
+    aws_api_gateway_integration.redirect_head,
+    aws_api_gateway_integration.stats_get,
+  ]
+
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+
+  triggers = {
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.create.id,
+      aws_api_gateway_method.create_post.id,
+      aws_api_gateway_integration.create_post.id,
+      aws_api_gateway_resource.redirect.id,
+      aws_api_gateway_method.redirect_get.id,
+      aws_api_gateway_integration.redirect_get.id,
+      aws_api_gateway_method.redirect_head.id,
+      aws_api_gateway_integration.redirect_head.id,
+      aws_api_gateway_resource.stats.id,
+      aws_api_gateway_resource.stats_short_code.id,
+      aws_api_gateway_method.stats_get.id,
+      aws_api_gateway_integration.stats_get.id,
+    ]))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_stage" "main" {
+  deployment_id = aws_api_gateway_deployment.main.id
+  rest_api_id   = aws_api_gateway_rest_api.squrl.id
+  stage_name    = "v1"
+
+  tags = local.common_tags
+}
+
+module "cloudfront" {
+  source = "../../modules/cloudfront"
+
+  api_gateway_domain_name = "${aws_api_gateway_rest_api.squrl.id}.execute-api.${var.aws_region}.amazonaws.com"
+  api_gateway_stage_name  = aws_api_gateway_stage.main.stage_name
+  environment             = var.environment
+  
+  # Disable WAF logging to simplify initial deployment
+  enable_waf_logging = false
+  
+  # Re-enable WAF with permissive configuration for testing
+  enable_waf = true
+  
+  # More permissive rate limits for testing
+  rate_limit_requests_per_5min = 10000
+  create_rate_limit_requests_per_5min = 1000
+
+  tags = local.common_tags
+}
+
+# Monitoring module for dashboards and alarms
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  # Basic configuration
+  environment         = var.environment
+  service_name        = "squrl"
+  aws_region         = var.aws_region
+  
+  # Resource identification
+  api_gateway_name               = aws_api_gateway_rest_api.squrl.name
+  api_gateway_stage_name         = aws_api_gateway_stage.main.stage_name
+  cloudfront_distribution_id     = module.cloudfront.distribution_id
+  
+  lambda_function_names = {
+    create_url = module.create_url_lambda.function_name
+    redirect   = module.redirect_lambda.function_name
+    analytics  = module.analytics_lambda.function_name
+  }
+  
+  dynamodb_table_name = module.dynamodb.table_name
+  kinesis_stream_name = aws_kinesis_stream.analytics.name
+  
+  # Alarm configuration for dev environment
+  enable_alarms            = true
+  alarm_email_endpoints    = [var.admin_email]
+  
+  # Cost thresholds appropriate for dev
+  monthly_cost_threshold_dev  = 50
+  monthly_cost_threshold_prod = 500
+  
+  # Performance thresholds for dev (more lenient)
+  error_rate_threshold           = 5   # 5% error rate threshold for dev
+  latency_p99_threshold_ms       = 200 # 200ms P99 latency threshold
+  lambda_throttle_threshold      = 5   # 5 throttle events threshold
+  dynamodb_throttle_threshold    = 1   # 1 throttle event threshold
+  
+  # Abuse detection settings (simplified for dev)
+  enable_abuse_detection             = false  # Disable for now to fix deployment issues
+  abuse_requests_per_ip_threshold    = 1000  # 1000 requests per IP threshold
+  abuse_urls_per_ip_threshold        = 100   # 100 URLs per IP per hour
+  
+  # Dashboard configuration (simplified for dev)
+  enable_dashboards     = true
+  enable_xray_tracing   = false  # Disable X-Ray for dev to reduce costs
+  enable_custom_metrics = false  # Disable complex custom metrics for dev
+  enable_cost_anomaly_detection = false  # Disable for now
+  
+  # Log retention for dev (shorter retention to save costs)
+  log_retention_days = 7
+
+  tags = local.common_tags
+}
+
 locals {
   common_tags = {
     Environment = var.environment
     Service     = "squrl"
     ManagedBy   = "terraform"
     Repository  = "squrl-proto"
+    Milestone   = "milestone-02"
   }
 }

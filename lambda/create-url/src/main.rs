@@ -13,7 +13,8 @@ use validator::Validate;
 // use squrl_shared::base62::encode_base62;
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
-use squrl_shared::models::{CreateUrlRequest, CreateUrlResponse, ErrorResponse, UrlItem};
+use squrl_shared::models::{CreateUrlRequest, CreateUrlResponse, ErrorResponse, UrlItem, 
+                           ApiGatewayProxyEvent, ApiGatewayProxyResponse, is_api_gateway_event};
 use squrl_shared::validation::{validate_custom_code, validate_url};
 
 fn init_tracing() {
@@ -54,11 +55,19 @@ async fn function_handler(
     event: LambdaEvent<Value>,
     db_client: UrlDynamoDbClient,
 ) -> Result<Value, Error> {
+    let is_api_gateway = is_api_gateway_event(&event.payload);
+    
     match handler_impl(event.payload, &db_client).await {
-        Ok(response) => Ok(response),
+        Ok(response) => {
+            if is_api_gateway {
+                Ok(create_api_gateway_success_response(response))
+            } else {
+                Ok(response)
+            }
+        }
         Err(err) => {
             error!("Function error: {}", err);
-            Ok(create_error_response(&err))
+            Ok(create_error_response(&err, is_api_gateway))
         }
     }
 }
@@ -67,8 +76,22 @@ async fn handler_impl(
     payload: Value,
     db_client: &UrlDynamoDbClient,
 ) -> Result<Value, UrlShortenerError> {
-    let request: CreateUrlRequest = serde_json::from_value(payload)
-        .map_err(|e| UrlShortenerError::ValidationError(e.to_string()))?;
+    let request: CreateUrlRequest = if is_api_gateway_event(&payload) {
+        // Parse API Gateway event
+        let api_event: ApiGatewayProxyEvent = serde_json::from_value(payload)
+            .map_err(|e| UrlShortenerError::ValidationError(format!("Invalid API Gateway event: {}", e)))?;
+        
+        // Extract body and parse as JSON
+        let body = api_event.body
+            .ok_or_else(|| UrlShortenerError::ValidationError("Missing request body".to_string()))?;
+            
+        serde_json::from_str(&body)
+            .map_err(|e| UrlShortenerError::ValidationError(format!("Invalid JSON in body: {}", e)))?
+    } else {
+        // Direct Lambda invocation
+        serde_json::from_value(payload)
+            .map_err(|e| UrlShortenerError::ValidationError(e.to_string()))?
+    };
     
     request.validate()
         .map_err(|e| UrlShortenerError::ValidationError(e.to_string()))?;
@@ -139,25 +162,82 @@ fn create_success_response(url_item: UrlItem) -> Value {
     serde_json::to_value(response).unwrap()
 }
 
-fn create_error_response(err: &UrlShortenerError) -> Value {
+fn create_api_gateway_success_response(response_data: Value) -> Value {
+    let api_response = ApiGatewayProxyResponse::new(
+        200,
+        serde_json::to_string(&response_data).unwrap()
+    );
+    
+    serde_json::to_value(api_response).unwrap()
+}
+
+fn create_error_response(err: &UrlShortenerError, is_api_gateway: bool) -> Value {
     let error_response = ErrorResponse {
         error: err.error_type().to_string(),
         message: err.to_string(),
         details: None,
     };
 
-    serde_json::to_value(error_response).unwrap()
+    if is_api_gateway {
+        let api_response = ApiGatewayProxyResponse::new(
+            err.status_code(),
+            serde_json::to_string(&error_response).unwrap()
+        );
+        serde_json::to_value(api_response).unwrap()
+    } else {
+        serde_json::to_value(error_response).unwrap()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_generate_short_code() {
         let code = generate_short_code();
         assert_eq!(code.len(), 8);
         assert!(code.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
+    }
+
+    #[test]
+    fn test_api_gateway_event_detection() {
+        // Test API Gateway event
+        let api_gateway_event = json!({
+            "httpMethod": "POST",
+            "body": "{\"original_url\": \"https://example.com\"}",
+            "headers": {"Content-Type": "application/json"},
+            "requestContext": {
+                "identity": {"sourceIp": "192.168.1.1"}
+            }
+        });
+        
+        assert!(is_api_gateway_event(&api_gateway_event));
+
+        // Test direct invocation
+        let direct_event = json!({
+            "original_url": "https://example.com"
+        });
+        
+        assert!(!is_api_gateway_event(&direct_event));
+    }
+
+    #[test]
+    fn test_api_gateway_response_format() {
+        let response_data = json!({
+            "short_code": "abc123",
+            "original_url": "https://example.com",
+            "short_url": "https://sqrl.co/abc123",
+            "created_at": "2025-08-24T10:30:00Z"
+        });
+        
+        let api_response = create_api_gateway_success_response(response_data);
+        
+        assert_eq!(api_response["statusCode"], 200);
+        assert!(api_response["headers"].is_object());
+        assert!(api_response["body"].is_string());
+        assert_eq!(api_response["isBase64Encoded"], false);
     }
 }
 

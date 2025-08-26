@@ -1,0 +1,160 @@
+# Mixed Workload Test Configuration
+# Tests realistic usage patterns with create + redirect + stats operations
+config:
+  target: "{{ $processEnvironment.API_BASE_URL || 'https://api-dev.squrl.dev' }}"
+  http:
+    timeout: 30
+    pool: 75
+  phases:
+    # Gradual ramp up
+    - duration: 120
+      arrivalRate: 20
+      rampTo: 80
+      name: "Ramp up to mixed load"
+    
+    # Sustained mixed load
+    - duration: 600  # 10 minutes
+      arrivalRate: 80
+      name: "Sustained mixed workload"
+    
+    # Peak traffic simulation
+    - duration: 180  # 3 minutes
+      arrivalRate: 120
+      name: "Peak traffic"
+    
+    # Gradual ramp down
+    - duration: 120
+      arrivalRate: 120
+      rampTo: 10
+      name: "Ramp down"
+
+  processor: "./test-functions.js"
+  variables:
+    testDomain: "example.com"
+    shortUrlBase: "{{ $processEnvironment.CLOUDFRONT_URL || 'https://squrl-dev.squrl.dev' }}"
+    
+  # Pre-populate some URLs for realistic redirect testing
+  before:
+    flow:
+      - loop:
+          count: 50
+          flow:
+            - post:
+                url: "/create"
+                json:
+                  url: "https://{{ testDomain }}/seed-url-{{ $loopCount }}"
+                capture:
+                  - json: "$.short_code"
+                    as: "seedShortCode{{ $loopCount }}"
+
+scenarios:
+  # Heavy redirect traffic (simulates real usage where redirects >> creates)
+  - name: "Redirect Heavy Usage"
+    weight: 60
+    flow:
+      - function: "selectRandomSeedUrl"
+      - get:
+          url: "{{ shortUrlBase }}/{{ selectedShortCode }}"
+          followRedirects: false
+          expect:
+            - statusCode: [301, 302]
+            - hasHeader: "location"
+
+  # URL creation (smaller percentage of traffic)
+  - name: "New URL Creation"
+    weight: 25
+    flow:
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/mixed-{{ $randomNumber }}-{{ $randomString }}"
+          capture:
+            - json: "$.short_code"  
+              as: "newShortCode"
+          expect:
+            - statusCode: 200
+      
+      # Sometimes immediately test the new URL
+      - get:
+          url: "{{ shortUrlBase }}/{{ newShortCode }}"
+          followRedirects: false
+          weight: 30 # 30% chance
+          expect:
+            - statusCode: [301, 302]
+
+  # Analytics/stats checking
+  - name: "Statistics Monitoring"
+    weight: 10
+    flow:
+      - function: "selectRandomSeedUrl"  
+      - get:
+          url: "/stats/{{ selectedShortCode }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "clicks"
+            - hasProperty: "created_at"
+
+  # Complex workflow - create, use, check stats
+  - name: "Full Lifecycle Workflow"
+    weight: 5
+    flow:
+      # Create URL
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/lifecycle-{{ $randomNumber }}"
+          capture:
+            - json: "$.short_code"
+              as: "lifecycleCode"
+          expect:
+            - statusCode: 200
+      
+      # Wait for propagation
+      - think: 2
+      
+      # Use it multiple times
+      - loop:
+          count: 3
+          flow:
+            - get:
+                url: "{{ shortUrlBase }}/{{ lifecycleCode }}"
+                followRedirects: false
+                expect:
+                  - statusCode: [301, 302]
+            - think: 1
+      
+      # Check final stats
+      - get:
+          url: "/stats/{{ lifecycleCode }}"
+          expect:
+            - statusCode: 200
+
+# Mixed workload expectations
+expect:
+  p95: 300  # Slightly higher due to mixed operations
+  max: 3000
+  errorRate: 0.02
+
+# Comprehensive metrics for mixed workload
+metrics:
+  - name: "create_operations_per_second"
+    unit: "ops/sec"
+  - name: "redirect_operations_per_second" 
+    unit: "ops/sec"
+  - name: "stats_operations_per_second"
+    unit: "ops/sec"
+  - name: "cache_hit_rate"
+    unit: "percent"
+  - name: "mixed_workload_p95"
+    unit: "ms"
+
+reporting:
+  output:
+    - type: json
+      path: "./reports/mixed-workload-{{ $timestamp }}.json"
+    - type: html
+      path: "./reports/mixed-workload-{{ $timestamp }}.html"

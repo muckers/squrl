@@ -1,0 +1,94 @@
+# Burst Load Test Configuration
+# Tests rate limiting behavior with burst traffic (200 req/sec burst limit)
+config:
+  target: "{{ $processEnvironment.API_BASE_URL || 'https://api-dev.squrl.dev' }}"
+  http:
+    timeout: 30
+    pool: 100 # Larger pool for burst testing
+  phases:
+    # Test burst capacity - should handle 200 req/sec briefly
+    - duration: 10
+      arrivalRate: 200  # Burst at 200 req/sec
+      name: "Burst test - 200 req/sec"
+    
+    # Cool down period
+    - duration: 30
+      arrivalRate: 10
+      name: "Cool down after burst"
+    
+    # Test sustained rate after burst
+    - duration: 60
+      arrivalRate: 100  # Back to sustained rate
+      name: "Sustained after burst"
+    
+    # Test higher burst - should trigger rate limiting
+    - duration: 10
+      arrivalRate: 300  # Should trigger rate limiting
+      name: "Over-limit burst test"
+    
+    # Final cool down
+    - duration: 30
+      arrivalRate: 5
+      name: "Final cool down"
+      
+  processor: "./test-functions.js"
+  variables:
+    testDomain: "example.com"
+    shortUrlBase: "{{ $processEnvironment.CLOUDFRONT_URL || 'https://squrl-dev.squrl.dev' }}"
+
+scenarios:
+  - name: "Quick URL Creation"
+    weight: 80
+    flow:
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/burst-test-{{ $randomNumber }}"
+          capture:
+            - json: "$.short_code"
+              as: "shortCode"
+          expect:
+            - statusCode: [200, 429] # Accept rate limiting
+      
+      # Quick redirect test if URL was created
+      - get:
+          url: "{{ shortUrlBase }}/{{ shortCode }}"
+          followRedirects: false
+          ifTrue: "shortCode"
+          expect:
+            - statusCode: [301, 302, 404, 429] # Various responses OK during burst
+
+  - name: "Rapid Stats Checking"
+    weight: 20
+    flow:
+      - function: "generateRandomShortCode"
+      - get:
+          url: "/stats/{{ randomShortCode }}"
+          expect:
+            - statusCode: [200, 404, 429] # Rate limiting expected during burst
+
+# Burst-specific expectations
+expect:
+  # During burst, higher response times are acceptable
+  p95: 500
+  max: 5000
+  # Higher error rate acceptable due to intentional rate limiting
+  errorRate: 0.2
+
+# Track rate limiting specifically
+metrics:
+  - name: "rate_limit_responses"
+    unit: "count"
+  - name: "burst_success_rate"
+    unit: "percent" 
+  - name: "burst_p95_response_time"
+    unit: "ms"
+
+reporting:
+  output:
+    - type: json
+      path: "./reports/burst-test-{{ $timestamp }}.json"
+    - type: html  
+      path: "./reports/burst-test-{{ $timestamp }}.html"

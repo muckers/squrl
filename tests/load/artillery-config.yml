@@ -1,0 +1,148 @@
+# Standard Load Test Configuration
+# Tests sustained 100 users/second as per API Gateway limits
+config:
+  target: "{{ $processEnvironment.API_BASE_URL || 'https://api-dev.squrl.dev' }}"
+  http:
+    timeout: 30
+    pool: 50 # Connection pool size
+  phases:
+    - duration: 60
+      arrivalRate: 10  # Warm up phase
+      name: "Warm up"
+    - duration: 300    # 5 minutes of sustained load
+      arrivalRate: 100 # 100 new users per second (target rate)
+      name: "Sustained load"
+    - duration: 60
+      arrivalRate: 5   # Cool down
+      name: "Cool down"
+  processor: "./test-functions.js"
+  variables:
+    # Test data variables
+    testDomain: "example.com"
+    shortUrlBase: "{{ $processEnvironment.CLOUDFRONT_URL || 'https://squrl-dev.squrl.dev' }}"
+  
+scenarios:
+  - name: "URL Creation and Usage Flow"
+    weight: 70
+    flow:
+      # Create a shortened URL
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/test-page-{{ $randomNumber }}"
+          capture:
+            - json: "$.short_code"
+              as: "shortCode"
+            - json: "$.short_url"
+              as: "shortUrl"
+          expect:
+            - statusCode: 200
+            - hasProperty: "short_code"
+            - hasProperty: "short_url"
+      
+      # Wait a bit before using the URL
+      - think: 1
+      
+      # Test the redirect (using CloudFront URL)
+      - get:
+          url: "{{ shortUrlBase }}/{{ shortCode }}"
+          followRedirects: false
+          expect:
+            - statusCode: [301, 302]
+            - hasHeader: "location"
+      
+      # Check statistics
+      - get:
+          url: "/stats/{{ shortCode }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "clicks"
+
+  - name: "Create URL with Custom Code"
+    weight: 15
+    flow:
+      - function: "generateCustomCode"
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/custom-{{ $randomNumber }}"
+            custom_code: "{{ customCode }}"
+          capture:
+            - json: "$.short_code"
+              as: "shortCode"
+          expect:
+            - statusCode: [200, 409] # 409 if custom code already exists
+
+  - name: "URL Deduplication Test"
+    weight: 10
+    flow:
+      # Create URL first time
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/duplicate-test"
+          capture:
+            - json: "$.short_code"
+              as: "firstShortCode"
+      
+      # Create same URL again - should get same short code
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+          json:
+            url: "https://{{ testDomain }}/duplicate-test"
+          capture:
+            - json: "$.short_code"
+              as: "secondShortCode"
+          expect:
+            - statusCode: 200
+      
+      # Verify same short code (this would need custom verification)
+      - function: "verifyDeduplication"
+
+  - name: "Stats Only Test"
+    weight: 5
+    flow:
+      # Try to get stats for a random code (mostly 404s)
+      - function: "generateRandomShortCode"
+      - get:
+          url: "/stats/{{ randomShortCode }}"
+          expect:
+            - statusCode: [200, 404]
+
+# Performance thresholds
+expect:
+  # API Gateway P95 should be < 200ms
+  p95: 200
+  # Max response time should be reasonable
+  max: 2000
+  # Error rate should be very low
+  errorRate: 0.01
+
+# Metrics and reporting
+metrics:
+  - name: "create_url_success_rate"
+    unit: "percent"
+  - name: "redirect_success_rate" 
+    unit: "percent"
+  - name: "stats_success_rate"
+    unit: "percent"
+  - name: "avg_response_time"
+    unit: "ms"
+  - name: "p95_response_time"
+    unit: "ms"
+
+# Custom reporting
+reporting:
+  output:
+    - type: json
+      path: "./reports/standard-load-{{ $timestamp }}.json"
+    - type: html
+      path: "./reports/standard-load-{{ $timestamp }}.html"

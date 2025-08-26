@@ -1,0 +1,30 @@
+{
+  "name": "squrl-load-tests",
+  "version": "1.0.0",
+  "description": "Load testing configuration for Squrl URL shortener API",
+  "scripts": {
+    "test:standard": "artillery run artillery-config.yml",
+    "test:burst": "artillery run burst-test.yml",
+    "test:mixed": "artillery run mixed-workload.yml",
+    "test:waf": "artillery run waf-limit-test.yml",
+    "test:all": "npm run test:standard && npm run test:burst && npm run test:mixed",
+    "report": "artillery run --output report.json artillery-config.yml && artillery report report.json",
+    "validate-config": "artillery validate artillery-config.yml && artillery validate burst-test.yml && artillery validate mixed-workload.yml && artillery validate waf-limit-test.yml"
+  },
+  "devDependencies": {
+    "artillery": "^2.0.0"
+  },
+  "dependencies": {},
+  "keywords": [
+    "load-testing",
+    "artillery",
+    "api-testing",
+    "performance"
+  ],
+  "author": "Squrl Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

@@ -1,0 +1,27 @@
+# Test artifacts and reports
+integration/target/
+load/node_modules/
+load/reports/*.json
+load/reports/*.html
+load/artillery-*.log
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

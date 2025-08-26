@@ -1,0 +1,120 @@
+# WAF Rate Limit Test Configuration  
+# Tests AWS WAF rate limiting (1000 requests per 5 minutes)
+config:
+  target: "{{ $processEnvironment.API_BASE_URL || 'https://api-dev.squrl.dev' }}"
+  http:
+    timeout: 30
+    pool: 50
+  phases:
+    # Phase 1: Build up to WAF limit gradually (200 req/min for 3 minutes = 600 requests)
+    - duration: 180  # 3 minutes
+      arrivalRate: 3.33  # ~200 requests/minute
+      name: "Phase 1 - Gradual buildup (600 requests)"
+    
+    # Phase 2: Push towards WAF limit (400 req/min for 2 minutes = 800 more requests, total ~1400)
+    - duration: 120  # 2 minutes  
+      arrivalRate: 6.67  # ~400 requests/minute
+      name: "Phase 2 - Approach WAF limit (800+ requests)"
+    
+    # Phase 3: Test WAF blocking (should start blocking after 1000 total in 5-minute window)
+    - duration: 60   # 1 minute
+      arrivalRate: 10  # ~600 requests/minute (aggressive)
+      name: "Phase 3 - WAF blocking test"
+    
+    # Phase 4: Wait and test recovery
+    - duration: 300  # 5 minutes wait for WAF window reset
+      arrivalRate: 1   # Minimal traffic during recovery
+      name: "Phase 4 - WAF recovery window"
+    
+    # Phase 5: Test normal operation after recovery
+    - duration: 60
+      arrivalRate: 5   # Normal traffic
+      name: "Phase 5 - Post-recovery test"
+
+  processor: "./test-functions.js"
+  variables:
+    testDomain: "example.com"
+    shortUrlBase: "{{ $processEnvironment.CLOUDFRONT_URL || 'https://squrl-dev.squrl.dev' }}"
+
+scenarios:
+  # Simple URL creation to test WAF limits
+  - name: "WAF Limit Testing - Create URLs"
+    weight: 70
+    flow:
+      - post:
+          url: "/create"
+          headers:
+            Content-Type: "application/json"
+            # Add some identifying headers for WAF testing
+            User-Agent: "WAF-Load-Test/1.0"
+          json:
+            url: "https://{{ testDomain }}/waf-test-{{ $randomNumber }}-{{ $timestamp }}"
+          capture:
+            - json: "$.short_code"
+              as: "wafTestCode"
+          expect:
+            # Accept various responses including WAF blocking
+            - statusCode: [200, 403, 429, 503]
+      
+      # If URL creation succeeded, test redirect
+      - get:
+          url: "{{ shortUrlBase }}/{{ wafTestCode }}"
+          followRedirects: false
+          ifTrue: "wafTestCode"
+          expect:
+            - statusCode: [301, 302, 403, 429, 503]
+
+  # Stats endpoint testing for WAF limits
+  - name: "WAF Limit Testing - Stats Requests"  
+    weight: 20
+    flow:
+      - function: "generateRandomShortCode"
+      - get:
+          url: "/stats/{{ randomShortCode }}"
+          headers:
+            User-Agent: "WAF-Load-Test/1.0"
+          expect:
+            - statusCode: [200, 404, 403, 429, 503]
+
+  # Redirect testing for WAF limits
+  - name: "WAF Limit Testing - Redirects"
+    weight: 10  
+    flow:
+      - function: "generateRandomShortCode"
+      - get:
+          url: "{{ shortUrlBase }}/{{ randomShortCode }}"
+          followRedirects: false
+          headers:
+            User-Agent: "WAF-Load-Test/1.0"
+          expect:
+            - statusCode: [301, 302, 404, 403, 429, 503]
+
+# WAF testing expectations - expect high error rates due to intentional blocking
+expect:
+  p95: 1000  # Higher latency acceptable during WAF blocking
+  max: 10000
+  errorRate: 0.5  # High error rate expected due to WAF blocking
+
+# WAF-specific metrics
+metrics:
+  - name: "waf_blocked_requests"
+    unit: "count"
+  - name: "waf_block_rate"
+    unit: "percent"
+  - name: "requests_per_5min_window"
+    unit: "count"
+  - name: "recovery_success_rate"
+    unit: "percent"
+
+# Custom think time for WAF testing
+defaults:
+  think:
+    min: 0.1
+    max: 2
+
+reporting:
+  output:
+    - type: json
+      path: "./reports/waf-limit-test-{{ $timestamp }}.json"
+    - type: html
+      path: "./reports/waf-limit-test-{{ $timestamp }}.html"

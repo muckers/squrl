@@ -9,3 +9,9 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "admin_email" {
+  description = "Administrator email for alerts and notifications"
+  type        = string
+  default     = "admin@example.com"
+}
