@@ -144,7 +144,9 @@ fn generate_short_code() -> String {
 }
 
 fn create_success_response(url_item: UrlItem) -> Value {
-    let short_url = format!("https://sqrl.co/{}", url_item.short_code);
+    let base_url = env::var("SHORT_URL_BASE")
+        .unwrap_or_else(|_| "https://sqrl.co".to_string());
+    let short_url = format!("{}/{}", base_url, url_item.short_code);
     let expires_at = url_item.expires_at.map(|ts| {
         DateTime::from_timestamp(ts, 0)
             .unwrap_or_else(Utc::now)

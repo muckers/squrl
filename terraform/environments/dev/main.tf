@@ -38,6 +38,10 @@ module "create_url_lambda" {
   timeout             = 10
   rust_log_level      = "info"
 
+  additional_env_vars = {
+    SHORT_URL_BASE = "https://${aws_api_gateway_rest_api.squrl.id}.execute-api.${var.aws_region}.amazonaws.com/v1"
+  }
+
   tags = local.common_tags
 }
 
