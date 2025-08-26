@@ -10,3 +10,5 @@ target/
 *.tfstate
 *.tfstate.*
 tfplan
+terraform_plan.txt
+*.tfplan
