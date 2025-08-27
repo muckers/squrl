@@ -39,7 +39,7 @@ module "create_url_lambda" {
   rust_log_level      = "info"
 
   additional_env_vars = {
-    SHORT_URL_BASE = "https://${aws_api_gateway_rest_api.squrl.id}.execute-api.${var.aws_region}.amazonaws.com/v1"
+    SHORT_URL_BASE = "https://staging.squrl.pub"
   }
 
   tags = local.common_tags
@@ -124,6 +124,14 @@ resource "aws_api_gateway_method" "create_post" {
   authorization = "NONE"
 }
 
+# OPTIONS /create method for CORS preflight
+resource "aws_api_gateway_method" "create_options" {
+  rest_api_id   = aws_api_gateway_rest_api.squrl.id
+  resource_id   = aws_api_gateway_resource.create.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
 resource "aws_api_gateway_integration" "create_post" {
   rest_api_id = aws_api_gateway_rest_api.squrl.id
   resource_id = aws_api_gateway_resource.create.id
@@ -132,6 +140,58 @@ resource "aws_api_gateway_integration" "create_post" {
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
   uri                     = module.create_url_lambda.invoke_arn
+}
+
+# OPTIONS integration for CORS preflight
+resource "aws_api_gateway_integration" "create_options" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_options.http_method
+
+  type = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode({
+      statusCode = 200
+    })
+  }
+}
+
+# OPTIONS method response
+resource "aws_api_gateway_method_response" "create_options_200" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Max-Age"       = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+# OPTIONS integration response
+resource "aws_api_gateway_integration_response" "create_options_200" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.create.id
+  http_method = aws_api_gateway_method.create_options.http_method
+  status_code = aws_api_gateway_method_response.create_options_200.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+    "method.response.header.Access-Control-Max-Age"       = "'86400'"
+  }
+
+  response_templates = {
+    "application/json" = ""
+  }
 }
 
 # Lambda permission for API Gateway
@@ -252,6 +312,8 @@ resource "aws_lambda_permission" "stats_api_gateway" {
 resource "aws_api_gateway_deployment" "main" {
   depends_on = [
     aws_api_gateway_integration.create_post,
+    aws_api_gateway_integration.create_options,
+    aws_api_gateway_integration_response.create_options_200,
     aws_api_gateway_integration.redirect_get,
     aws_api_gateway_integration.redirect_head,
     aws_api_gateway_integration.stats_get,
@@ -264,6 +326,10 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.create.id,
       aws_api_gateway_method.create_post.id,
       aws_api_gateway_integration.create_post.id,
+      aws_api_gateway_method.create_options.id,
+      aws_api_gateway_integration.create_options.id,
+      aws_api_gateway_method_response.create_options_200.id,
+      aws_api_gateway_integration_response.create_options_200.id,
       aws_api_gateway_resource.redirect.id,
       aws_api_gateway_method.redirect_get.id,
       aws_api_gateway_integration.redirect_get.id,
@@ -289,6 +355,16 @@ resource "aws_api_gateway_stage" "main" {
   tags = local.common_tags
 }
 
+# S3 bucket for static web hosting
+module "static_hosting" {
+  source = "../../modules/s3-static-hosting"
+
+  bucket_name  = "squrl-web-ui-${var.environment}"
+  environment  = var.environment
+  
+  tags = local.common_tags
+}
+
 module "cloudfront" {
   source = "../../modules/cloudfront"
 
@@ -296,11 +372,19 @@ module "cloudfront" {
   api_gateway_stage_name  = aws_api_gateway_stage.main.stage_name
   environment             = var.environment
   
+  # S3 static hosting integration
+  s3_bucket_name                    = module.static_hosting.bucket_id
+  s3_bucket_regional_domain_name    = module.static_hosting.bucket_regional_domain_name
+  
+  # Custom domain configuration
+  custom_domain_name = "staging.squrl.pub"
+  certificate_arn    = "arn:aws:acm:us-east-1:634280252303:certificate/73c30742-3f2b-4e2c-95b4-f97367ee1514"
+  
   # Disable WAF logging to simplify initial deployment
   enable_waf_logging = false
   
-  # Re-enable WAF with permissive configuration for testing
-  enable_waf = true
+  # Temporarily disable WAF to test CloudFront configuration
+  enable_waf = false
   
   # More permissive rate limits for testing
   rate_limit_requests_per_5min = 10000

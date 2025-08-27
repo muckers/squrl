@@ -12,8 +12,9 @@ resource "aws_cloudfront_origin_request_policy" "api_default" {
     headers {
       items = [
         "Accept",
+        "Access-Control-Request-Headers",
+        "Access-Control-Request-Method",
         "Content-Type",
-        "Host",
         "Origin",
         "Referer",
         "User-Agent",
@@ -41,9 +42,8 @@ resource "aws_cloudfront_origin_request_policy" "redirect" {
     headers {
       items = [
         "CloudFront-Viewer-Country",
-        "CloudFront-Is-Mobile-Viewer",
+        "CloudFront-Is-Mobile-Viewer", 
         "CloudFront-Is-Tablet-Viewer",
-        "Host",
         "Referer",
         "User-Agent",
         "X-Forwarded-For"

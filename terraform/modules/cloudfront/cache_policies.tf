@@ -125,3 +125,29 @@ resource "aws_cloudfront_cache_policy" "stats" {
     }
   }
 }
+
+# Cache Policy for Static Content (long caching)
+resource "aws_cloudfront_cache_policy" "static_content" {
+  name        = "squrl-static-content-${var.environment}"
+  comment     = "Cache policy for static content - optimized for long caching"
+  default_ttl = 86400  # 1 day
+  max_ttl     = 31536000 # 1 year
+  min_ttl     = 0
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+
+    query_strings_config {
+      query_string_behavior = "none" # Static content usually doesn't use query strings
+    }
+
+    headers_config {
+      header_behavior = "none" # Static content doesn't need special headers
+    }
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+  }
+}

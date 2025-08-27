@@ -30,6 +30,18 @@ variable "certificate_arn" {
   default     = null
 }
 
+variable "s3_bucket_name" {
+  description = "S3 bucket name for static content origin (optional)"
+  type        = string
+  default     = null
+}
+
+variable "s3_bucket_regional_domain_name" {
+  description = "S3 bucket regional domain name"
+  type        = string
+  default     = null
+}
+
 variable "price_class" {
   description = "CloudFront price class (PriceClass_All, PriceClass_200, PriceClass_100)"
   type        = string

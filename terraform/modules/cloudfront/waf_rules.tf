@@ -75,7 +75,7 @@ resource "aws_wafv2_web_acl" "main" {
                   uri_path {}
                 }
                 positional_constraint = "STARTS_WITH"
-                search_string         = "/${var.api_gateway_stage_name}/create"
+                search_string         = "/create"
                 text_transformation {
                   priority = 0
                   type     = "LOWERCASE"
@@ -204,43 +204,6 @@ resource "aws_wafv2_web_acl" "main" {
 
     statement {
       or_statement {
-        # Block requests with malformed JSON in POST requests
-        statement {
-          and_statement {
-            statement {
-              byte_match_statement {
-                field_to_match {
-                  method {}
-                }
-                positional_constraint = "EXACTLY"
-                search_string         = "POST"
-                text_transformation {
-                  priority = 0
-                  type     = "NONE"
-                }
-              }
-            }
-            statement {
-              not_statement {
-                statement {
-                  byte_match_statement {
-                    field_to_match {
-                      single_header {
-                        name = "content-type"
-                      }
-                    }
-                    positional_constraint = "CONTAINS"
-                    search_string         = "application/json"
-                    text_transformation {
-                      priority = 0
-                      type     = "LOWERCASE"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
         # Block requests with suspicious patterns
         statement {
           byte_match_statement {

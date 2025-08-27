@@ -1,9 +1,15 @@
+# CloudFront Origin Access Identity for S3
+resource "aws_cloudfront_origin_access_identity" "s3_oai" {
+  count   = var.s3_bucket_regional_domain_name != null ? 1 : 0
+  comment = "OAI for S3 bucket"
+}
+
 # CloudFront Distribution with API Gateway Origin
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = var.ipv6_enabled
   comment             = "Squrl URL Shortener CloudFront Distribution - ${var.environment}"
-  default_root_object = ""
+  default_root_object = var.s3_bucket_name != null ? "index.html" : ""
   price_class         = var.price_class
   web_acl_id          = var.enable_waf ? aws_wafv2_web_acl.main[0].arn : null
   http_version        = var.http2_enabled ? "http2" : "http1.1"
@@ -30,21 +36,34 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # Default cache behavior for API endpoints
+  # Optional S3 origin for static content
+  dynamic "origin" {
+    for_each = var.s3_bucket_regional_domain_name != null ? [1] : []
+    content {
+      domain_name = var.s3_bucket_regional_domain_name
+      origin_id   = "s3-static-${var.environment}"
+      
+      s3_origin_config {
+        origin_access_identity = aws_cloudfront_origin_access_identity.s3_oai[0].cloudfront_access_identity_path
+      }
+    }
+  }
+
+  # Default cache behavior - serve static content if S3 is available, otherwise API
   default_cache_behavior {
-    target_origin_id         = "api-gateway-${var.environment}"
+    target_origin_id         = var.s3_bucket_regional_domain_name != null ? "s3-static-${var.environment}" : "api-gateway-${var.environment}"
     viewer_protocol_policy   = "redirect-to-https"
-    allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    allowed_methods          = var.s3_bucket_regional_domain_name != null ? ["GET", "HEAD", "OPTIONS"] : ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods           = ["GET", "HEAD", "OPTIONS"]
-    compress                 = var.enable_compression
-    cache_policy_id          = aws_cloudfront_cache_policy.api_default.id
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.api_default.id
+    compress                 = true
+    cache_policy_id          = var.s3_bucket_regional_domain_name != null ? aws_cloudfront_cache_policy.static_content.id : aws_cloudfront_cache_policy.api_default.id
+    origin_request_policy_id = var.s3_bucket_regional_domain_name != null ? null : aws_cloudfront_origin_request_policy.api_default.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   }
 
   # Cache behavior for /create endpoint (no caching) - Most specific first
   ordered_cache_behavior {
-    path_pattern             = "/create*"
+    path_pattern             = "/create"
     target_origin_id         = "api-gateway-${var.environment}"
     viewer_protocol_policy   = "redirect-to-https"
     allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
@@ -57,7 +76,7 @@ resource "aws_cloudfront_distribution" "main" {
 
   # Cache behavior for /stats endpoint
   ordered_cache_behavior {
-    path_pattern             = "/stats*"
+    path_pattern             = "/stats/*"
     target_origin_id         = "api-gateway-${var.environment}"
     viewer_protocol_policy   = "redirect-to-https"
     allowed_methods          = ["GET", "HEAD", "OPTIONS"]
@@ -68,9 +87,11 @@ resource "aws_cloudfront_distribution" "main" {
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   }
 
-  # Cache behavior for URL redirects (/{short_code}) - Less specific, should be last
+
+  # Cache behavior for short code redirects - catch paths that look like short codes
+  # Using pattern to match short codes while avoiding conflicts with static files
   ordered_cache_behavior {
-    path_pattern             = "/*"
+    path_pattern             = "/????????*"
     target_origin_id         = "api-gateway-${var.environment}"
     viewer_protocol_policy   = "redirect-to-https"
     allowed_methods          = ["GET", "HEAD", "OPTIONS"]
@@ -80,6 +101,20 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = aws_cloudfront_origin_request_policy.redirect.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   }
+
+  # Cache behavior for /api/* paths - catch remaining API paths
+  ordered_cache_behavior {
+    path_pattern             = "/api/*"
+    target_origin_id         = "api-gateway-${var.environment}"
+    viewer_protocol_policy   = "redirect-to-https"
+    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
+    cached_methods           = ["GET", "HEAD"]
+    compress                 = false # Redirects don't benefit from compression
+    cache_policy_id          = aws_cloudfront_cache_policy.redirect.id
+    origin_request_policy_id = aws_cloudfront_origin_request_policy.redirect.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
+  }
+
 
   # Geographic restrictions (if needed in the future)
   restrictions {
