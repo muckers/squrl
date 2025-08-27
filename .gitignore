@@ -12,3 +12,10 @@ target/
 tfplan
 terraform_plan.txt
 *.tfplan
+.terraform.lock.hcl
+**/modules.json
+
+# Temporary AWS config files
+**/distribution_config.json
+**/route53_cname_record.json
+**/update_distribution_config.json
