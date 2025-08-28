@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URL Shortener</title>
+    <title>SQURL Shortener</title>
     <style>
         * {
             margin: 0;
@@ -13,7 +13,8 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', system-ui, sans-serif;
-            background: #ffffff;
+            background: #f8f9fa;
+            position: relative;
             color: #1a1a1a;
             line-height: 1.5;
             min-height: 100vh;
@@ -22,6 +23,23 @@
             justify-content: center;
             padding: 24px;
             font-size: 16px;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('background.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            opacity: 0.15;
+            z-index: -1;
+            /* Add a blue tint to the darker lines */
+            filter: sepia(100%) saturate(200%) hue-rotate(180deg);
         }
 
         .container {
@@ -157,11 +175,15 @@
         .result-container {
             display: none;
             margin-top: 32px;
-            padding: 24px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .result-box {
+            padding: 20px;
             background: #f9fafb;
             border: 1px solid #e5e7eb;
             border-radius: 12px;
-            animation: slideIn 0.3s ease;
+            margin-bottom: 16px;
         }
 
         @keyframes slideIn {
@@ -193,19 +215,69 @@
             background: #ffffff;
             border: 1px solid #e5e7eb;
             border-radius: 6px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .result-url:hover {
+            background: #f8fafc;
+            border-color: #0066cc;
+        }
+
+        .copy-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .copy-btn {
+            padding: 8px 16px;
+            background: #0066cc;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 100px;
+        }
+
+        .copy-btn:hover {
+            background: #0052a3;
+        }
+
+        .copy-btn:active {
+            transform: translateY(1px);
         }
 
         .copy-status {
             font-size: 13px;
-            color: #166534;
             font-weight: 500;
             opacity: 0;
             transition: opacity 0.2s ease;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            text-align: center;
+            margin-top: 8px;
         }
 
         .copy-status.show {
             opacity: 1;
+        }
+
+        .copy-status.success {
+            color: #166534;
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+
+        .copy-status.error {
+            color: #dc2626;
+            background: #fef2f2;
+            border-color: #fecaca;
         }
 
         /* Mobile responsive */
@@ -254,21 +326,45 @@
                 transition-duration: 0.01ms !important;
             }
         }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 24px;
+            text-align: center;
+            font-size: 12px;
+            color: #9ca3af;
+            background: linear-gradient(to top, rgba(248, 249, 250, 0.9), transparent);
+            z-index: 10;
+        }
+
+        .footer p {
+            margin: 0;
+            letter-spacing: 0.025em;
+        }
+
+        /* Adjust container padding to account for footer */
+        @media (max-height: 700px) {
+            body {
+                padding-bottom: 60px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">URL Shortener</h1>
+            <h1 class="title">sqURL Shortener</h1>
             <p class="subtitle">Create short, shareable links</p>
         </header>
 
         <main>
             <form id="urlForm" class="form-container">
                 <div class="input-group">
-                    <input 
-                        type="url" 
-                        id="urlInput" 
+                    <input
+                        type="url"
+                        id="urlInput"
                         class="url-input"
                         placeholder="https://example.com/your-long-url"
                         required
@@ -276,7 +372,7 @@
                         spellcheck="false"
                     >
                 </div>
-                
+
                 <button type="submit" id="submitBtn" class="submit-btn">
                     Shorten URL
                 </button>
@@ -286,8 +382,15 @@
             </form>
 
             <div id="resultContainer" class="result-container">
-                <div class="result-label">Shortened URL</div>
-                <div id="resultUrl" class="result-url"></div>
+                <div class="result-box">
+                    <div class="result-label">Shortened URL</div>
+                    <div id="resultUrl" class="result-url" onclick="copyToClipboard(this.textContent)" title="Click to copy"></div>
+                    <div class="copy-actions">
+                        <button id="copyBtn" class="copy-btn" onclick="copyToClipboard(document.getElementById('resultUrl').textContent)">
+                            Copy URL
+                        </button>
+                    </div>
+                </div>
                 <div id="copyStatus" class="copy-status">Copied to clipboard</div>
             </div>
         </main>
@@ -307,9 +410,9 @@
         // Form submission handler
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const url = urlInput.value.trim();
-            
+
             if (!validateUrl(url)) {
                 return;
             }
@@ -369,19 +472,18 @@
                     throw new Error('Invalid response from server');
                 }
 
-                // Show result and copy to clipboard
+                // Show result - auto-copy happens inside showResult
                 showResult(data.short_url);
-                await copyToClipboard(data.short_url);
-                
+
                 // Clear the input
                 urlInput.value = '';
 
             } catch (error) {
                 console.error('Error shortening URL:', error);
-                
+
                 // Handle different error types
                 let errorMsg = 'Failed to shorten URL. Please try again.';
-                
+
                 if (error.name === 'TypeError' && error.message.includes('fetch')) {
                     errorMsg = 'Network error. Please check your connection.';
                 } else if (error.message.includes('429')) {
@@ -391,7 +493,7 @@
                 } else if (error.message) {
                     errorMsg = error.message;
                 }
-                
+
                 showError(errorMsg);
             } finally {
                 setLoading(false);
@@ -437,47 +539,211 @@
             resultUrl.textContent = shortUrl;
             resultContainer.style.display = 'block';
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Automatically copy to clipboard
+            setTimeout(() => {
+                copyToClipboard(shortUrl);
+            }, 100); // Small delay to ensure DOM is updated
         }
 
-        // Copy to clipboard with feedback
+        /**
+         * Bulletproof clipboard copy function with comprehensive error handling
+         * and multiple fallback strategies for maximum browser compatibility
+         */
         async function copyToClipboard(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                
-                // Show copy status
-                copyStatus.classList.add('show');
-                
-                // Hide after 2 seconds
-                setTimeout(() => {
-                    copyStatus.classList.remove('show');
-                }, 2000);
-                
-            } catch (err) {
-                console.warn('Failed to copy to clipboard:', err);
-                
-                // Fallback for older browsers
+            const debug = {
+                method: 'unknown',
+                error: null,
+                context: {
+                    isSecureContext: window.isSecureContext,
+                    hasClipboardAPI: !!(navigator.clipboard),
+                    hasWriteText: !!(navigator.clipboard && navigator.clipboard.writeText),
+                    protocol: window.location.protocol,
+                    userAgent: navigator.userAgent.substring(0, 100)
+                }
+            };
+
+            let success = false;
+            let errorMessage = '';
+
+            // Strategy 1: Modern Clipboard API with user gesture validation
+            if (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) {
                 try {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    textArea.style.position = 'fixed';
-                    textArea.style.left = '-999999px';
-                    textArea.style.top = '-999999px';
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    
-                    if (document.execCommand('copy')) {
-                        copyStatus.classList.add('show');
-                        setTimeout(() => {
-                            copyStatus.classList.remove('show');
-                        }, 2000);
+                    debug.method = 'clipboard-api';
+
+                    // Check for user activation (required for clipboard access)
+                    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+                        throw new Error('No user activation detected');
                     }
-                    
-                    document.body.removeChild(textArea);
-                } catch (fallbackErr) {
-                    console.error('Clipboard copy failed:', fallbackErr);
+
+                    await navigator.clipboard.writeText(text);
+                    success = true;
+                    console.log('✅ Clipboard API copy successful');
+
+                } catch (err) {
+                    debug.error = err.message;
+                    console.warn('❌ Clipboard API failed:', err.name, err.message);
+
+                    // Common error handling
+                    if (err.name === 'NotAllowedError') {
+                        errorMessage = 'Clipboard access denied by browser';
+                    } else if (err.name === 'SecurityError') {
+                        errorMessage = 'Security restriction prevented copy';
+                    } else if (err.message.includes('user activation')) {
+                        errorMessage = 'User gesture required for clipboard access';
+                    }
                 }
             }
+
+            // Strategy 2: Enhanced execCommand fallback with proper focus handling
+            if (!success) {
+                try {
+                    debug.method = 'execcommand';
+
+                    // Store current focus to restore later
+                    const activeElement = document.activeElement;
+
+                    // Create optimized textarea for copy operation
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+
+                    // Critical styling for cross-browser compatibility
+                    Object.assign(textArea.style, {
+                        position: 'fixed',
+                        top: '0',
+                        left: '0',
+                        width: '2em',
+                        height: '2em',
+                        padding: '0',
+                        border: 'none',
+                        outline: 'none',
+                        boxShadow: 'none',
+                        background: 'transparent',
+                        fontSize: '16px', // Prevent zoom on iOS
+                        opacity: '0',
+                        zIndex: '-1000'
+                    });
+
+                    textArea.setAttribute('readonly', '');
+                    textArea.setAttribute('aria-hidden', 'true');
+                    textArea.setAttribute('tabindex', '-1');
+
+                    document.body.appendChild(textArea);
+
+                    // Enhanced selection for mobile compatibility
+                    textArea.focus({ preventScroll: true });
+                    textArea.select();
+
+                    // iOS Safari specific handling
+                    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                        textArea.setSelectionRange(0, text.length);
+                        textArea.readOnly = false;
+                    } else {
+                        textArea.setSelectionRange(0, 99999);
+                    }
+
+                    // Attempt copy
+                    const copyResult = document.execCommand('copy');
+                    success = copyResult;
+
+                    // Cleanup
+                    document.body.removeChild(textArea);
+
+                    // Restore focus
+                    if (activeElement && activeElement.focus) {
+                        activeElement.focus();
+                    }
+
+                    if (success) {
+                        console.log('✅ execCommand copy successful');
+                    } else {
+                        console.warn('❌ execCommand returned false');
+                        errorMessage = 'Browser rejected copy command';
+                    }
+
+                } catch (err) {
+                    debug.error = err.message;
+                    console.warn('❌ execCommand fallback failed:', err);
+                    errorMessage = 'Copy command not supported';
+                }
+            }
+
+            // Strategy 3: Selection API fallback (for some mobile browsers)
+            if (!success && window.getSelection) {
+                try {
+                    debug.method = 'selection-api';
+
+                    const range = document.createRange();
+                    const tempDiv = document.createElement('div');
+                    tempDiv.style.position = 'fixed';
+                    tempDiv.style.left = '-9999px';
+                    tempDiv.textContent = text;
+
+                    document.body.appendChild(tempDiv);
+                    range.selectNodeContents(tempDiv);
+
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    success = document.execCommand('copy');
+
+                    selection.removeAllRanges();
+                    document.body.removeChild(tempDiv);
+
+                    if (success) {
+                        console.log('✅ Selection API copy successful');
+                    }
+
+                } catch (err) {
+                    debug.error = err.message;
+                    console.warn('❌ Selection API fallback failed:', err);
+                }
+            }
+
+            // Provide detailed feedback based on results
+            let feedbackMessage = '';
+            let feedbackClass = '';
+
+            if (success) {
+                feedbackMessage = 'Copied to clipboard!';
+                feedbackClass = 'success';
+                console.log('📋 Copy operation completed successfully via:', debug.method);
+            } else {
+                // Determine specific failure message
+                if (errorMessage) {
+                    feedbackMessage = errorMessage;
+                } else if (!window.isSecureContext) {
+                    feedbackMessage = 'Secure connection required for clipboard access';
+                } else if (!navigator.clipboard) {
+                    feedbackMessage = 'Clipboard not supported in this browser';
+                } else {
+                    feedbackMessage = 'Copy failed - please select and copy manually';
+                }
+
+                feedbackClass = 'error';
+
+                // Log comprehensive debug information for troubleshooting
+                console.group('📋 Copy operation failed - Debug information:');
+                console.log('Context:', debug.context);
+                console.log('Last attempted method:', debug.method);
+                console.log('Last error:', debug.error);
+                console.log('Text to copy:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+                console.groupEnd();
+            }
+
+            // Update UI with feedback
+            copyStatus.textContent = feedbackMessage;
+            copyStatus.className = `copy-status ${feedbackClass}`;
+            copyStatus.classList.add('show');
+
+            // Auto-hide feedback after appropriate duration
+            const hideDelay = success ? 2500 : 5000; // Show errors longer
+            setTimeout(() => {
+                copyStatus.classList.remove('show');
+            }, hideDelay);
+
+            return success;
         }
 
         // Keyboard shortcuts
@@ -489,12 +755,31 @@
                 resultContainer.style.display = 'none';
                 urlInput.focus();
             }
+
+            // Ctrl/Cmd+C to copy result when visible
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && resultContainer.style.display !== 'none') {
+                const resultText = resultUrl.textContent;
+                if (resultText) {
+                    e.preventDefault();
+                    copyToClipboard(resultText);
+                }
+            }
         });
 
         // Auto-focus input on page load
         document.addEventListener('DOMContentLoaded', function() {
             urlInput.focus();
         });
+    </script>
+    
+    <footer class="footer">
+        <p id="copyright">© 2025 sqURL. All rights reserved.</p>
+    </footer>
+    
+    <script>
+        // Update copyright year dynamically
+        const currentYear = new Date().getFullYear();
+        document.getElementById('copyright').textContent = `© ${currentYear} sqURL. All rights reserved.`;
     </script>
 </body>
 </html>
