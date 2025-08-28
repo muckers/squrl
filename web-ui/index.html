@@ -419,6 +419,17 @@
             margin: 0;
             letter-spacing: 0.025em;
         }
+        
+        .footer a {
+            color: #6b7280;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        
+        .footer a:hover {
+            color: #374151;
+            text-decoration: underline;
+        }
 
         /* Adjust container padding to account for footer */
         @media (max-height: 500px) {
@@ -878,13 +889,13 @@
     </script>
     
     <footer class="footer">
-        <p id="copyright">© 2025 sqURL. All rights reserved.</p>
+        <p id="copyright">© 2025 <a href="https://www.linkedin.com/in/ronforresterpdx/" target="_blank" rel="noopener noreferrer">Ron Forrester</a>. All rights reserved.</p>
     </footer>
     
     <script>
         // Update copyright year dynamically
         const currentYear = new Date().getFullYear();
-        document.getElementById('copyright').textContent = `© ${currentYear} sqURL. All rights reserved.`;
+        document.getElementById('copyright').innerHTML = `© ${currentYear} <a href="https://www.linkedin.com/in/ronforresterpdx/" target="_blank" rel="noopener noreferrer">Ron Forrester</a>. All rights reserved.`;
     </script>
 </body>
 </html>
