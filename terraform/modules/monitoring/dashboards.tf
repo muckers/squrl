@@ -56,7 +56,7 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
           stat    = "Sum"
         }
       },
-      
+
       # Row 2: Latency Metrics
       {
         type   = "metric"
@@ -66,9 +66,9 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/ApiGateway", "Latency", "ApiName", var.api_gateway_name, {"stat": "p50"}],
-            ["...", {"stat": "p95"}],
-            ["...", {"stat": "p99"}]
+            ["AWS/ApiGateway", "Latency", "ApiName", var.api_gateway_name, { "stat" : "p50" }],
+            ["...", { "stat" : "p95" }],
+            ["...", { "stat" : "p99" }]
           ]
           view    = "timeSeries"
           stacked = false
@@ -99,9 +99,9 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/Lambda", "Duration", "FunctionName", var.lambda_function_names.create_url, {"stat": "Average"}],
-            ["...", var.lambda_function_names.redirect, {"stat": "Average"}],
-            ["...", var.lambda_function_names.analytics, {"stat": "Average"}]
+            ["AWS/Lambda", "Duration", "FunctionName", var.lambda_function_names.create_url, { "stat" : "Average" }],
+            ["...", var.lambda_function_names.redirect, { "stat" : "Average" }],
+            ["...", var.lambda_function_names.analytics, { "stat" : "Average" }]
           ]
           view    = "timeSeries"
           stacked = false
@@ -118,8 +118,8 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/CloudFront", "OriginLatency", "DistributionId", var.cloudfront_distribution_id, "Region", "Global", {"stat": "Average"}],
-            [".", "ViewerRequestLatency", ".", ".", ".", ".", {"stat": "p95"}]
+            ["AWS/CloudFront", "OriginLatency", "DistributionId", var.cloudfront_distribution_id, "Region", "Global", { "stat" : "Average" }],
+            [".", "ViewerRequestLatency", ".", ".", ".", ".", { "stat" : "p95" }]
           ]
           view    = "timeSeries"
           stacked = false
@@ -128,7 +128,7 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
           period  = 300
         }
       },
-      
+
       # Row 3: Geographic Distribution
       {
         type   = "metric"
@@ -180,7 +180,7 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
           }
         }
       },
-      
+
       # Row 4: Error Analysis
       {
         type   = "metric"
@@ -234,42 +234,56 @@ resource "aws_cloudwatch_dashboard" "api_performance" {
   # Note: CloudWatch dashboards don't support tags in current AWS provider
 }
 
-# Abuse Detection Dashboard
-resource "aws_cloudwatch_dashboard" "abuse_detection" {
+# Privacy-Compliant Analytics Dashboard
+resource "aws_cloudwatch_dashboard" "privacy_compliant_analytics" {
   count          = var.enable_dashboards && var.enable_abuse_detection ? 1 : 0
-  dashboard_name = "${var.service_name}-abuse-detection-${var.environment}"
+  dashboard_name = "${var.service_name}-privacy-compliant-analytics-${var.environment}"
 
   dashboard_body = jsonencode({
     widgets = [
-      # Row 1: Request Volume Monitoring
+      # Row 1: Anonymous Request Pattern Monitoring
       {
-        type   = "log"
+        type   = "metric"
         x      = 0
         y      = 0
         width  = 12
         height = 6
         properties = {
-          query   = "SOURCE '/aws/apigateway/${var.api_gateway_name}'\n| fields @timestamp, @message, requestId, ip, status\n| filter @message like /(?i)(bot|crawler|scanner|abuse)/\n| stats count() as suspicious_requests by ip\n| sort suspicious_requests desc\n| limit 10"
+          metrics = [
+            ["${var.service_name}/${var.environment}/Analytics", "total_requests", "Environment", var.environment, "Service", var.service_name],
+            ["...", "successful_requests_2xx", ".", ".", ".", "."],
+            ["...", "client_error_requests_4xx", ".", ".", ".", "."],
+            ["...", "server_error_requests_5xx", ".", ".", ".", "."]
+          ]
+          view    = "timeSeries"
+          stacked = false
           region  = var.aws_region
-          title   = "Top 10 IPs - Suspicious Activity"
-          view    = "table"
+          title   = "Anonymous Request Volume (No PII)"
+          period  = 300
+          stat    = "Sum"
         }
       },
       {
-        type   = "log"
+        type   = "metric"
         x      = 12
         y      = 0
         width  = 12
         height = 6
         properties = {
-          query   = "SOURCE '/aws/apigateway/${var.api_gateway_name}'\n| fields @timestamp, ip, status, userAgent\n| filter @timestamp > @timestamp - 1h\n| stats count() as total_requests, count() as error_requests by ip, status\n| filter status like /4[0-9][0-9]/\n| sort error_requests desc\n| limit 20"
+          metrics = [
+            ["${var.service_name}/${var.environment}/Analytics", "avg_response_time_ms", "Environment", var.environment, "Service", var.service_name],
+            ["...", "max_response_time_ms", ".", ".", ".", "."]
+          ]
+          view    = "timeSeries"
+          stacked = false
           region  = var.aws_region
-          title   = "High Error Rate IPs (Last Hour)"
-          view    = "table"
+          title   = "Anonymous Performance Metrics (No User Tracking)"
+          period  = 300
+          stat    = "Average"
         }
       },
-      
-      # Row 2: WAF Metrics (if available)
+
+      # Row 2: Anonymous Error Analysis
       {
         type   = "metric"
         x      = 0
@@ -277,16 +291,15 @@ resource "aws_cloudwatch_dashboard" "abuse_detection" {
         width  = 8
         height = 6
         properties = {
-          metrics = var.waf_web_acl_name != null ? [
-            ["AWS/WAFV2", "BlockedRequests", "WebACL", var.waf_web_acl_name, "Rule", "RateLimitRule", "Region", "CloudFront"],
-            [".", "AllowedRequests", ".", ".", ".", ".", ".", "."],
-          ] : [
-            ["AWS/CloudFront", "Requests", "DistributionId", var.cloudfront_distribution_id, "Region", "Global"]
+          metrics = [
+            ["${var.service_name}/${var.environment}/Analytics", "not_found_404_errors", "Environment", var.environment, "Service", var.service_name],
+            ["...", "rate_limit_429_errors", ".", ".", ".", "."],
+            ["...", "server_5xx_errors", ".", ".", ".", "."]
           ]
           view    = "timeSeries"
           stacked = false
           region  = var.aws_region
-          title   = var.waf_web_acl_name != null ? "WAF Blocked vs Allowed Requests" : "CloudFront Requests (WAF not configured)"
+          title   = "Anonymous Error Patterns (Privacy-Compliant)"
           period  = 300
           stat    = "Sum"
         }
@@ -299,14 +312,14 @@ resource "aws_cloudwatch_dashboard" "abuse_detection" {
         height = 6
         properties = {
           metrics = [
-            ["${var.service_name}/${var.environment}/Security", "AbuseDetections_high_volume", "Environment", var.environment, "Service", var.service_name, "PatternType", "high_volume"],
-            [".", "AbuseDetections_scanner", ".", ".", ".", ".", ".", "scanner"],
-            [".", "AbuseDetections_suspicious_patterns", ".", ".", ".", ".", ".", "suspicious_patterns"]
+            ["${var.service_name}/${var.environment}/Analytics", "url_creation_requests", "Environment", var.environment, "Service", var.service_name],
+            ["...", "url_redirect_requests", ".", ".", ".", "."],
+            ["...", "stats_requests", ".", ".", ".", "."]
           ]
           view    = "timeSeries"
           stacked = false
           region  = var.aws_region
-          title   = "Custom Abuse Detection Metrics"
+          title   = "Anonymous Usage Patterns (Privacy-Safe)"
           period  = 300
           stat    = "Sum"
         }
@@ -319,70 +332,98 @@ resource "aws_cloudwatch_dashboard" "abuse_detection" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/ApiGateway", "Count", "ApiName", var.api_gateway_name, "Method", "POST", "Resource", "/create"]
+            ["${var.service_name}/${var.environment}/Analytics", "URLCreationRate", "Environment", var.environment, "Service", var.service_name],
+            ["...", "NotFoundRequests", ".", ".", ".", "."]
           ]
           view    = "timeSeries"
           stacked = false
           region  = var.aws_region
-          title   = "URL Creation Rate (Monitor for Spam)"
+          title   = "Anonymous Service Usage Rate (No User Tracking)"
           period  = 300
           stat    = "Sum"
           annotations = {
             horizontal = [
               {
-                label = "High Volume Threshold"
-                value = var.abuse_urls_per_ip_threshold * 10  # Approximate total threshold
+                label = "Service Health Baseline"
+                value = 100
               }
             ]
           }
         }
       },
-      
-      # Row 3: Detailed Analysis
+
+      # Row 3: Privacy-Compliant Aggregate Analysis
       {
-        type   = "log"
+        type   = "metric"
         x      = 0
         y      = 12
         width  = 24
         height = 8
         properties = {
-          query   = "SOURCE '/aws/apigateway/${var.api_gateway_name}'\n| fields @timestamp, ip, method, resource, status, userAgent, responseTime\n| filter @timestamp > @timestamp - 2h\n| stats count() as request_count, avg(responseTime) as avg_response_time by ip, userAgent\n| sort request_count desc\n| limit 50"
+          metrics = [
+            ["${var.service_name}/${var.environment}/Analytics", "morning_requests", "Environment", var.environment, "Service", var.service_name, "Type", "anonymous-pattern"],
+            ["...", "afternoon_requests", ".", ".", ".", ".", ".", "."],
+            ["...", "evening_requests", ".", ".", ".", ".", ".", "."],
+            ["...", "night_requests", ".", ".", ".", ".", ".", "."],
+            ["...", "weekday_requests", ".", ".", ".", ".", ".", "."],
+            ["...", "weekend_requests", ".", ".", ".", ".", ".", "."]
+          ]
+          view    = "timeSeries"
+          stacked = true
           region  = var.aws_region
-          title   = "Detailed Request Analysis - Last 2 Hours"
-          view    = "table"
+          title   = "Anonymous Temporal Usage Patterns (Privacy-Safe)"
+          period  = 300
+          stat    = "Sum"
         }
       },
-      
-      # Row 4: Geographic Analysis
+
+      # Row 4: Service Health Indicators (Anonymous)
       {
-        type   = "log"
+        type   = "metric"
         x      = 0
         y      = 20
         width  = 12
         height = 6
         properties = {
-          query   = "SOURCE '/aws/apigateway/${var.api_gateway_name}'\n| fields @timestamp, ip, country, city, status\n| filter @timestamp > @timestamp - 1d\n| stats count() as requests by country, city\n| sort requests desc\n| limit 20"
+          metrics = [
+            ["AWS/ApiGateway", "Count", "ApiName", var.api_gateway_name],
+            ["AWS/Lambda", "Invocations", "FunctionName", var.lambda_function_names.create_url],
+            ["...", var.lambda_function_names.redirect],
+            ["...", var.lambda_function_names.analytics]
+          ]
+          view    = "timeSeries"
+          stacked = false
           region  = var.aws_region
-          title   = "Top Request Sources by Geography"
-          view    = "table"
+          title   = "Service Health Overview (Anonymous)"
+          period  = 300
+          stat    = "Sum"
         }
       },
       {
-        type   = "log"
+        type   = "metric"
         x      = 12
         y      = 20
         width  = 12
         height = 6
         properties = {
-          query   = "SOURCE '/aws/apigateway/${var.api_gateway_name}'\n| fields @timestamp, ip, status\n| filter @timestamp > @timestamp - 1h AND status like /404/\n| stats count() as not_found_requests by ip\n| sort not_found_requests desc\n| limit 15"
+          metrics = [
+            ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", var.dynamodb_table_name],
+            [".", "ConsumedWriteCapacityUnits", ".", "."],
+            ["AWS/CloudFront", "CacheHitRate", "DistributionId", var.cloudfront_distribution_id, "Region", "Global"]
+          ]
+          view    = "timeSeries"
+          stacked = false
           region  = var.aws_region
-          title   = "Top 404 Sources (Scanner Detection)"
-          view    = "table"
+          title   = "Infrastructure Performance (Anonymous)"
+          period  = 300
+          stat    = "Average"
         }
       }
     ]
   })
 
+  # Privacy compliance note: This dashboard contains only anonymous aggregate metrics
+  # No personally identifiable information (PII) is collected or displayed
   # Note: CloudWatch dashboards don't support tags in current AWS provider
 }
 
@@ -410,9 +451,9 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           ]
           view    = "timeSeries"
           stacked = true
-          region  = "us-east-1"  # Billing metrics are only in us-east-1
+          region  = "us-east-1" # Billing metrics are only in us-east-1
           title   = "Estimated Daily Costs by Service"
-          period  = 86400  # 24 hours
+          period  = 86400 # 24 hours
           stat    = "Maximum"
           annotations = {
             horizontal = [
@@ -424,7 +465,7 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           }
         }
       },
-      
+
       # Row 2: Service-specific metrics
       {
         type   = "metric"
@@ -442,7 +483,7 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           stacked = false
           region  = var.aws_region
           title   = "Lambda Invocations (Cost Driver)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
           stat    = "Sum"
         }
       },
@@ -460,7 +501,7 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           stacked = false
           region  = var.aws_region
           title   = "API Gateway Requests (Cost Driver)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
           stat    = "Sum"
         }
       },
@@ -479,7 +520,7 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           stacked = false
           region  = var.aws_region
           title   = "DynamoDB Capacity Units (Cost Driver)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
           stat    = "Sum"
         }
       },
@@ -498,11 +539,11 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           stacked = false
           region  = var.aws_region
           title   = "CloudFront Data Transfer (Cost Driver)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
           stat    = "Sum"
         }
       },
-      
+
       # Row 3: Cost Analysis Table
       {
         type   = "log"
@@ -511,10 +552,10 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
         width  = 12
         height = 6
         properties = {
-          query   = "SOURCE '/aws/cost-monitoring/${var.service_name}-${var.environment}'\n| fields @timestamp, service_name, cost_usd, usage_quantity, usage_unit\n| filter @timestamp > @timestamp - 24h\n| stats sum(cost_usd) as daily_cost, sum(usage_quantity) as total_usage by service_name, usage_unit\n| sort daily_cost desc"
-          region  = var.aws_region
-          title   = "Daily Cost Breakdown by Service"
-          view    = "table"
+          query  = "SOURCE '/aws/cost-monitoring/${var.service_name}-${var.environment}'\n| fields @timestamp, service_name, cost_usd, usage_quantity, usage_unit\n| filter @timestamp > @timestamp - 24h\n| stats sum(cost_usd) as daily_cost, sum(usage_quantity) as total_usage by service_name, usage_unit\n| sort daily_cost desc"
+          region = var.aws_region
+          title  = "Daily Cost Breakdown by Service"
+          view   = "table"
         }
       },
       {
@@ -524,13 +565,13 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
         width  = 12
         height = 6
         properties = {
-          query   = "SOURCE '/aws/cost-monitoring/${var.service_name}-${var.environment}'\n| fields @timestamp, cost_usd\n| filter @timestamp > @timestamp - 30d\n| stats sum(cost_usd) as total_cost by datefloor(@timestamp, 1d) as day\n| sort day asc"
-          region  = var.aws_region
-          title   = "30-Day Cost Trend"
-          view    = "table"
+          query  = "SOURCE '/aws/cost-monitoring/${var.service_name}-${var.environment}'\n| fields @timestamp, cost_usd\n| filter @timestamp > @timestamp - 30d\n| stats sum(cost_usd) as total_cost by datefloor(@timestamp, 1d) as day\n| sort day asc"
+          region = var.aws_region
+          title  = "30-Day Cost Trend"
+          view   = "table"
         }
       },
-      
+
       # Row 4: Usage Efficiency Metrics
       {
         type   = "metric"
@@ -540,14 +581,14 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/Lambda", "Duration", "FunctionName", var.lambda_function_names.create_url, {"stat": "Average"}],
-            [".", "MemoryUtilization", ".", ".", {"stat": "Average"}]
+            ["AWS/Lambda", "Duration", "FunctionName", var.lambda_function_names.create_url, { "stat" : "Average" }],
+            [".", "MemoryUtilization", ".", ".", { "stat" : "Average" }]
           ]
           view    = "timeSeries"
           stacked = false
           region  = var.aws_region
           title   = "Lambda Efficiency (Cost Optimization)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
         }
       },
       {
@@ -565,7 +606,7 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           stacked = false
           region  = var.aws_region
           title   = "DynamoDB Throttling (Efficiency Monitor)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
           stat    = "Sum"
         }
       },
@@ -584,7 +625,7 @@ resource "aws_cloudwatch_dashboard" "cost_tracking" {
           stacked = false
           region  = var.aws_region
           title   = "Kinesis Usage (Cost Driver)"
-          period  = 3600  # 1 hour
+          period  = 3600 # 1 hour
           stat    = "Sum"
         }
       }
@@ -612,11 +653,11 @@ resource "aws_cloudwatch_dashboard" "system_health" {
           metrics = [
             ["AWS/ApiGateway", "Count", "ApiName", var.api_gateway_name]
           ]
-          view    = "singleValue"
-          region  = var.aws_region
-          title   = "Total Requests (Last Hour)"
-          period  = 3600
-          stat    = "Sum"
+          view   = "singleValue"
+          region = var.aws_region
+          title  = "Total Requests (Last Hour)"
+          period = 3600
+          stat   = "Sum"
         }
       },
       {
@@ -630,11 +671,11 @@ resource "aws_cloudwatch_dashboard" "system_health" {
             ["AWS/ApiGateway", "4XXError", "ApiName", var.api_gateway_name],
             [".", "5XXError", ".", "."]
           ]
-          view    = "singleValue"
-          region  = var.aws_region
-          title   = "Error Count (Last Hour)"
-          period  = 3600
-          stat    = "Sum"
+          view   = "singleValue"
+          region = var.aws_region
+          title  = "Error Count (Last Hour)"
+          period = 3600
+          stat   = "Sum"
         }
       },
       {
@@ -645,12 +686,12 @@ resource "aws_cloudwatch_dashboard" "system_health" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/ApiGateway", "Latency", "ApiName", var.api_gateway_name, {"stat": "p99"}]
+            ["AWS/ApiGateway", "Latency", "ApiName", var.api_gateway_name, { "stat" : "p99" }]
           ]
-          view    = "singleValue"
-          region  = var.aws_region
-          title   = "P99 Latency (Last Hour)"
-          period  = 3600
+          view   = "singleValue"
+          region = var.aws_region
+          title  = "P99 Latency (Last Hour)"
+          period = 3600
         }
       },
       {
@@ -663,14 +704,14 @@ resource "aws_cloudwatch_dashboard" "system_health" {
           metrics = [
             ["AWS/CloudFront", "CacheHitRate", "DistributionId", var.cloudfront_distribution_id, "Region", "Global"]
           ]
-          view    = "singleValue"
-          region  = var.aws_region
-          title   = "Cache Hit Rate %"
-          period  = 3600
-          stat    = "Average"
+          view   = "singleValue"
+          region = var.aws_region
+          title  = "Cache Hit Rate %"
+          period = 3600
+          stat   = "Average"
         }
       },
-      
+
       # Row 2: Service Status Grid
       {
         type   = "metric"
@@ -680,12 +721,12 @@ resource "aws_cloudwatch_dashboard" "system_health" {
         height = 8
         properties = {
           metrics = [
-            ["AWS/Lambda", "Invocations", "FunctionName", var.lambda_function_names.create_url, {"label": "Create URL"}],
-            [".", "Errors", ".", ".", {"label": "Create URL Errors"}],
-            [".", "Invocations", ".", var.lambda_function_names.redirect, {"label": "Redirect"}],
-            [".", "Errors", ".", ".", {"label": "Redirect Errors"}],
-            [".", "Invocations", ".", var.lambda_function_names.analytics, {"label": "Analytics"}],
-            [".", "Errors", ".", ".", {"label": "Analytics Errors"}]
+            ["AWS/Lambda", "Invocations", "FunctionName", var.lambda_function_names.create_url, { "label" : "Create URL" }],
+            [".", "Errors", ".", ".", { "label" : "Create URL Errors" }],
+            [".", "Invocations", ".", var.lambda_function_names.redirect, { "label" : "Redirect" }],
+            [".", "Errors", ".", ".", { "label" : "Redirect Errors" }],
+            [".", "Invocations", ".", var.lambda_function_names.analytics, { "label" : "Analytics" }],
+            [".", "Errors", ".", ".", { "label" : "Analytics Errors" }]
           ]
           view    = "timeSeries"
           stacked = false

@@ -70,7 +70,7 @@ resource "aws_sns_topic_subscription" "email_alerts" {
 # X-Ray tracing configuration
 resource "aws_xray_sampling_rule" "squrl_sampling" {
   count = var.enable_xray_tracing ? 1 : 0
-  
+
   rule_name      = "${var.service_name}-${var.environment}-sampling"
   priority       = 1000
   version        = 1
@@ -93,10 +93,10 @@ resource "aws_xray_sampling_rule" "squrl_sampling" {
 # Custom CloudWatch metrics namespace
 resource "aws_cloudwatch_composite_alarm" "service_health" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name        = "${var.service_name}-service-health-${var.environment}"
   alarm_description = "Composite alarm tracking overall service health for ${var.service_name}"
-  
+
   actions_enabled = true
   alarm_actions = [
     var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
@@ -184,7 +184,7 @@ resource "aws_cloudwatch_composite_alarm" "service_health" {
 # CloudWatch Event Rules for automated responses
 resource "aws_cloudwatch_event_rule" "high_error_rate" {
   count = var.enable_alarms ? 1 : 0
-  
+
   name        = "${var.service_name}-high-error-rate-${var.environment}"
   description = "Triggers when API error rate is high"
 
@@ -209,11 +209,11 @@ resource "aws_cloudwatch_event_rule" "high_error_rate" {
 # CloudWatch Event Target for automated logging
 resource "aws_cloudwatch_event_target" "error_rate_logger" {
   count = var.enable_alarms ? 1 : 0
-  
+
   rule      = aws_cloudwatch_event_rule.high_error_rate[0].name
   target_id = "ErrorRateLogger"
   arn       = aws_cloudwatch_log_group.alert_processing.arn
-  
+
   input_transformer {
     input_paths = {
       alarm_name = "$.detail.alarmName"
@@ -221,16 +221,16 @@ resource "aws_cloudwatch_event_target" "error_rate_logger" {
       reason     = "$.detail.state.reason"
       timestamp  = "$.detail.state.timestamp"
     }
-    
+
     input_template = jsonencode({
-      timestamp    = "<timestamp>"
-      alarm_name   = "<alarm_name>"
-      state        = "<state>"
-      reason       = "<reason>"
-      environment  = var.environment
-      service      = var.service_name
-      alert_type   = "high_error_rate"
-      severity     = "HIGH"
+      timestamp   = "<timestamp>"
+      alarm_name  = "<alarm_name>"
+      state       = "<state>"
+      reason      = "<reason>"
+      environment = var.environment
+      service     = var.service_name
+      alert_type  = "high_error_rate"
+      severity    = "HIGH"
     })
   }
 }
@@ -281,47 +281,46 @@ resource "aws_iam_role_policy" "cloudwatch_events_log_policy" {
   })
 }
 
-# Lambda function for processing abuse detection (optional advanced feature)
-resource "aws_lambda_function" "abuse_processor" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  function_name = "${var.service_name}-abuse-processor-${var.environment}"
-  role          = aws_iam_role.abuse_processor_role[0].arn
+# Lambda function for privacy-compliant aggregate analytics processing
+resource "aws_lambda_function" "analytics_processor" {
+  count = var.enable_custom_metrics ? 1 : 0
+
+  function_name = "${var.service_name}-analytics-processor-${var.environment}"
+  role          = aws_iam_role.analytics_processor_role[0].arn
   handler       = "index.handler"
   runtime       = "python3.11"
   timeout       = 60
   memory_size   = 256
 
-  filename         = "${path.module}/abuse_processor.zip"
-  source_code_hash = data.archive_file.abuse_processor_zip[0].output_base64sha256
+  filename         = "${path.module}/analytics_processor.zip"
+  source_code_hash = data.archive_file.analytics_processor_zip[0].output_base64sha256
 
   environment {
     variables = {
-      LOG_GROUP_NAME      = aws_cloudwatch_log_group.abuse_detection[0].name
+      LOG_GROUP_NAME      = aws_cloudwatch_log_group.service_analytics[0].name
       ENVIRONMENT         = var.environment
       SERVICE_NAME        = var.service_name
-      ABUSE_THRESHOLD     = var.abuse_requests_per_ip_threshold
       ALERT_SNS_TOPIC_ARN = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
     }
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-processor-${var.environment}"
+    Name        = "${var.service_name}-analytics-processor-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
-    Function    = "abuse-detection"
+    Function    = "analytics-processing"
   })
 }
 
-# Zip file for abuse processor Lambda
-data "archive_file" "abuse_processor_zip" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
+# Zip file for analytics processor Lambda
+data "archive_file" "analytics_processor_zip" {
+  count = var.enable_custom_metrics ? 1 : 0
+
   type        = "zip"
-  output_path = "${path.module}/abuse_processor.zip"
-  
+  output_path = "${path.module}/analytics_processor.zip"
+
   source {
-    content = templatefile("${path.module}/templates/abuse_processor.py", {
+    content = templatefile("${path.module}/templates/privacy_compliant_analytics.py", {
       service_name = var.service_name
       environment  = var.environment
     })
@@ -329,10 +328,10 @@ data "archive_file" "abuse_processor_zip" {
   }
 }
 
-# IAM role for abuse processor Lambda
-resource "aws_iam_role" "abuse_processor_role" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "${var.service_name}-abuse-processor-role-${var.environment}"
+# IAM role for analytics processor Lambda
+resource "aws_iam_role" "analytics_processor_role" {
+  count = var.enable_custom_metrics ? 1 : 0
+  name  = "${var.service_name}-analytics-processor-role-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -348,22 +347,22 @@ resource "aws_iam_role" "abuse_processor_role" {
   })
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-processor-role-${var.environment}"
+    Name        = "${var.service_name}-analytics-processor-role-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
   })
 }
 
-resource "aws_iam_role_policy_attachment" "abuse_processor_basic" {
-  count      = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  role       = aws_iam_role.abuse_processor_role[0].name
+resource "aws_iam_role_policy_attachment" "analytics_processor_basic" {
+  count      = var.enable_custom_metrics ? 1 : 0
+  role       = aws_iam_role.analytics_processor_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy" "abuse_processor_custom" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "AbuseProcessorCustomPolicy"
-  role  = aws_iam_role.abuse_processor_role[0].id
+resource "aws_iam_role_policy" "analytics_processor_custom" {
+  count = var.enable_custom_metrics ? 1 : 0
+  name  = "AnalyticsProcessorCustomPolicy"
+  role  = aws_iam_role.analytics_processor_role[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -379,8 +378,8 @@ resource "aws_iam_role_policy" "abuse_processor_custom" {
           "logs:GetQueryResults"
         ]
         Resource = [
-          aws_cloudwatch_log_group.abuse_detection[0].arn,
-          "${aws_cloudwatch_log_group.abuse_detection[0].arn}:*"
+          aws_cloudwatch_log_group.service_analytics[0].arn,
+          "${aws_cloudwatch_log_group.service_analytics[0].arn}:*"
         ]
       },
       {
@@ -391,7 +390,7 @@ resource "aws_iam_role_policy" "abuse_processor_custom" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "cloudwatch:namespace" = "${var.service_name}/${var.environment}/Security"
+            "cloudwatch:namespace" = "${var.service_name}/${var.environment}/Analytics"
           }
         }
       },
@@ -406,33 +405,33 @@ resource "aws_iam_role_policy" "abuse_processor_custom" {
   })
 }
 
-# CloudWatch Event Rule to trigger abuse processor
-resource "aws_cloudwatch_event_rule" "abuse_processor_schedule" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  name                = "${var.service_name}-abuse-processor-schedule-${var.environment}"
-  description         = "Triggers abuse processor every 5 minutes"
-  schedule_expression = "rate(5 minutes)"
+# CloudWatch Event Rule to trigger analytics processor
+resource "aws_cloudwatch_event_rule" "analytics_processor_schedule" {
+  count = var.enable_custom_metrics ? 1 : 0
+
+  name                = "${var.service_name}-analytics-processor-schedule-${var.environment}"
+  description         = "Triggers anonymous analytics processor every 15 minutes"
+  schedule_expression = "rate(15 minutes)"
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-processor-schedule-${var.environment}"
+    Name        = "${var.service_name}-analytics-processor-schedule-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
   })
 }
 
-resource "aws_cloudwatch_event_target" "abuse_processor" {
-  count     = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  rule      = aws_cloudwatch_event_rule.abuse_processor_schedule[0].name
-  target_id = "AbuseProcessorTarget"
-  arn       = aws_lambda_function.abuse_processor[0].arn
+resource "aws_cloudwatch_event_target" "analytics_processor" {
+  count     = var.enable_custom_metrics ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.analytics_processor_schedule[0].name
+  target_id = "AnalyticsProcessorTarget"
+  arn       = aws_lambda_function.analytics_processor[0].arn
 }
 
-resource "aws_lambda_permission" "allow_eventbridge_abuse" {
-  count         = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
+resource "aws_lambda_permission" "allow_eventbridge_analytics" {
+  count         = var.enable_custom_metrics ? 1 : 0
   statement_id  = "AllowExecutionFromEventBridge"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.abuse_processor[0].function_name
+  function_name = aws_lambda_function.analytics_processor[0].function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.abuse_processor_schedule[0].arn
+  source_arn    = aws_cloudwatch_event_rule.analytics_processor_schedule[0].arn
 }

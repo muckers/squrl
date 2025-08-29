@@ -17,7 +17,7 @@ resource "aws_cloudwatch_log_group" "monitoring" {
 # Custom metrics log group for structured application logs
 resource "aws_cloudwatch_log_group" "custom_metrics" {
   count = var.enable_custom_metrics ? 1 : 0
-  
+
   name              = "/aws/custom-metrics/${var.service_name}-${var.environment}"
   retention_in_days = var.log_retention_days
   kms_key_id        = aws_kms_key.logs.arn
@@ -30,19 +30,19 @@ resource "aws_cloudwatch_log_group" "custom_metrics" {
   })
 }
 
-# Abuse detection log group
-resource "aws_cloudwatch_log_group" "abuse_detection" {
+# Service analytics log group (privacy-compliant)
+resource "aws_cloudwatch_log_group" "service_analytics" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name              = "/aws/abuse-detection/${var.service_name}-${var.environment}"
+
+  name              = "/aws/service-analytics/${var.service_name}-${var.environment}"
   retention_in_days = var.log_retention_days
   kms_key_id        = aws_kms_key.logs.arn
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-detection-${var.environment}"
+    Name        = "${var.service_name}-service-analytics-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
-    LogType     = "abuse-detection"
+    LogType     = "service-analytics"
   })
 }
 
@@ -110,7 +110,7 @@ resource "aws_kms_key" "logs" {
             "kms:EncryptionContext:aws:logs:arn" = [
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/monitoring/${var.service_name}-${var.environment}",
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/custom-metrics/${var.service_name}-${var.environment}",
-              "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/abuse-detection/${var.service_name}-${var.environment}",
+              "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/service-analytics/${var.service_name}-${var.environment}",
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/cost-monitoring/${var.service_name}-${var.environment}",
               "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/alert-processing/${var.service_name}-${var.environment}"
             ]
@@ -149,18 +149,18 @@ resource "aws_cloudwatch_log_stream" "cost_tracking" {
   log_group_name = aws_cloudwatch_log_group.cost_monitoring.name
 }
 
-resource "aws_cloudwatch_log_stream" "abuse_alerts" {
+resource "aws_cloudwatch_log_stream" "analytics_alerts" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "abuse-alerts"
-  log_group_name = aws_cloudwatch_log_group.abuse_detection[0].name
+
+  name           = "analytics-alerts"
+  log_group_name = aws_cloudwatch_log_group.service_analytics[0].name
 }
 
-resource "aws_cloudwatch_log_stream" "security_events" {
+resource "aws_cloudwatch_log_stream" "anonymous_patterns" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "security-events"
-  log_group_name = aws_cloudwatch_log_group.abuse_detection[0].name
+
+  name           = "anonymous-patterns"
+  log_group_name = aws_cloudwatch_log_group.service_analytics[0].name
 }
 
 # Log metric filters for automated parsing
@@ -174,7 +174,7 @@ resource "aws_cloudwatch_log_metric_filter" "api_errors" {
     namespace     = "${var.service_name}/${var.environment}"
     value         = "1"
     default_value = "0"
-    
+
     dimensions = {
       Environment = var.environment
       Service     = var.service_name
@@ -192,7 +192,7 @@ resource "aws_cloudwatch_log_metric_filter" "high_latency_requests" {
     namespace     = "${var.service_name}/${var.environment}"
     value         = "1"
     default_value = "0"
-    
+
     dimensions = {
       Environment = var.environment
       Service     = var.service_name
@@ -200,23 +200,24 @@ resource "aws_cloudwatch_log_metric_filter" "high_latency_requests" {
   }
 }
 
-resource "aws_cloudwatch_log_metric_filter" "suspicious_requests" {
+resource "aws_cloudwatch_log_metric_filter" "anonymous_log_error_patterns" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "${var.service_name}-suspicious-requests-${var.environment}"
-  log_group_name = aws_cloudwatch_log_group.abuse_detection[0].name
-  pattern        = "[timestamp, ip, user_agent=\"*bot*\" || user_agent=\"*crawler*\" || user_agent=\"*scanner*\", ...]"
+
+  name           = "${var.service_name}-anonymous-log-error-patterns-${var.environment}"
+  log_group_name = aws_cloudwatch_log_group.service_analytics[0].name
+  # Privacy-compliant pattern - detects error patterns without storing PII
+  pattern = "[timestamp, level=\"WARN\", pattern=\"*error*\", ...]"
 
   metric_transformation {
-    name          = "SuspiciousRequests"
-    namespace     = "${var.service_name}/${var.environment}/Security"
+    name          = "AnonymousLogErrorPatterns"
+    namespace     = "${var.service_name}/${var.environment}/Analytics"
     value         = "1"
     default_value = "0"
-    
+
     dimensions = {
       Environment = var.environment
       Service     = var.service_name
-      Type        = "abuse-detection"
+      Type        = "log-error-analysis"
     }
   }
 }
@@ -232,7 +233,7 @@ resource "aws_cloudwatch_log_metric_filter" "daily_cost" {
     namespace     = "${var.service_name}/${var.environment}/Cost"
     value         = "$cost_usd"
     default_value = "0"
-    
+
     dimensions = {
       Environment = var.environment
       Service     = var.service_name

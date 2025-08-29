@@ -1,76 +1,70 @@
-# Abuse Detection and Security Monitoring Resources
+# Privacy-Compliant Anonymous Pattern Detection Resources
+# This module focuses on aggregate patterns without tracking individual users
 
-# CloudWatch Event Rules for real-time abuse detection
-resource "aws_cloudwatch_event_rule" "suspicious_activity" {
+# CloudWatch Event Rules for anonymous pattern detection
+resource "aws_cloudwatch_event_rule" "anonymous_patterns" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name        = "${var.service_name}-suspicious-activity-${var.environment}"
-  description = "Detects suspicious activity patterns in real-time"
+
+  name        = "${var.service_name}-anonymous-patterns-${var.environment}"
+  description = "Detects aggregate usage patterns without storing PII"
 
   event_pattern = jsonencode({
     source      = ["aws.apigateway"]
     detail-type = ["API Gateway Execution Logs"]
     detail = {
-      status = ["404", "429", "403"]
-      # Pattern for rapid sequential requests from same IP
-      sourceIp = [{
-        exists = true
-      }]
+      status = ["404", "429", "500", "502", "503"]
     }
   })
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-suspicious-activity-${var.environment}"
+    Name        = "${var.service_name}-anonymous-patterns-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
-    Purpose     = "abuse-detection"
+    Purpose     = "anonymous-pattern-detection"
   })
 }
 
-# Lambda function for real-time abuse analysis
-resource "aws_lambda_function" "realtime_abuse_detector" {
+# Lambda function for anonymous aggregate pattern analysis
+resource "aws_lambda_function" "anonymous_pattern_analyzer" {
   count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  function_name = "${var.service_name}-realtime-abuse-detector-${var.environment}"
-  role          = aws_iam_role.realtime_abuse_detector_role[0].arn
+
+  function_name = "${var.service_name}-anonymous-pattern-analyzer-${var.environment}"
+  role          = aws_iam_role.anonymous_pattern_analyzer_role[0].arn
   handler       = "index.handler"
   runtime       = "python3.11"
   timeout       = 30
   memory_size   = 256
 
-  filename         = "${path.module}/realtime_abuse_detector.zip"
-  source_code_hash = data.archive_file.realtime_abuse_detector_zip[0].output_base64sha256
+  filename         = "${path.module}/anonymous_pattern_analyzer.zip"
+  source_code_hash = data.archive_file.anonymous_pattern_analyzer_zip[0].output_base64sha256
 
   environment {
     variables = {
-      DYNAMODB_TABLE_NAME     = aws_dynamodb_table.abuse_tracking[0].name
-      CLOUDWATCH_LOG_GROUP    = var.enable_abuse_detection ? aws_cloudwatch_log_group.abuse_detection[0].name : ""
-      SNS_TOPIC_ARN          = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
-      ENVIRONMENT            = var.environment
-      SERVICE_NAME           = var.service_name
-      ABUSE_THRESHOLD_5MIN   = var.abuse_requests_per_ip_threshold / 12  # 5-minute threshold
-      ABUSE_THRESHOLD_HOUR   = var.abuse_requests_per_ip_threshold
-      URL_CREATION_THRESHOLD = var.abuse_urls_per_ip_threshold
+      CLOUDWATCH_LOG_GROUP = var.enable_abuse_detection ? aws_cloudwatch_log_group.service_analytics[0].name : ""
+      SNS_TOPIC_ARN        = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
+      ENVIRONMENT          = var.environment
+      SERVICE_NAME         = var.service_name
+      ERROR_RATE_THRESHOLD = var.error_rate_threshold
     }
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-realtime-abuse-detector-${var.environment}"
+    Name        = "${var.service_name}-anonymous-pattern-analyzer-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
-    Function    = "realtime-abuse-detection"
+    Function    = "anonymous-pattern-analysis"
   })
 }
 
-# Zip file for real-time abuse detector
-data "archive_file" "realtime_abuse_detector_zip" {
+# Zip file for anonymous pattern analyzer
+data "archive_file" "anonymous_pattern_analyzer_zip" {
   count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
+
   type        = "zip"
-  output_path = "${path.module}/realtime_abuse_detector.zip"
-  
+  output_path = "${path.module}/anonymous_pattern_analyzer.zip"
+
   source {
-    content = templatefile("${path.module}/templates/realtime_abuse_detector.py", {
+    content = templatefile("${path.module}/templates/anonymous_pattern_analyzer.py", {
       service_name = var.service_name
       environment  = var.environment
     })
@@ -78,17 +72,17 @@ data "archive_file" "realtime_abuse_detector_zip" {
   }
 }
 
-# DynamoDB table for abuse tracking state
-resource "aws_dynamodb_table" "abuse_tracking" {
+# DynamoDB table for anonymous aggregate metrics (no PII stored)
+resource "aws_dynamodb_table" "anonymous_metrics" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "${var.service_name}-abuse-tracking-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "ip_address"
-  range_key      = "time_window"
+
+  name         = "${var.service_name}-anonymous-metrics-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "metric_type"
+  range_key    = "time_window"
 
   attribute {
-    name = "ip_address"
+    name = "metric_type"
     type = "S"
   }
 
@@ -98,7 +92,7 @@ resource "aws_dynamodb_table" "abuse_tracking" {
   }
 
   attribute {
-    name = "abuse_score_range"
+    name = "severity_level"
     type = "S"
   }
 
@@ -108,23 +102,23 @@ resource "aws_dynamodb_table" "abuse_tracking" {
   }
 
   global_secondary_index {
-    name            = "abuse-score-index"
-    hash_key        = "abuse_score_range"
+    name            = "severity-index"
+    hash_key        = "severity_level"
     projection_type = "ALL"
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-tracking-${var.environment}"
+    Name        = "${var.service_name}-anonymous-metrics-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
-    Purpose     = "abuse-detection"
+    Purpose     = "anonymous-analytics"
   })
 }
 
-# IAM role for real-time abuse detector
-resource "aws_iam_role" "realtime_abuse_detector_role" {
+# IAM role for anonymous pattern analyzer
+resource "aws_iam_role" "anonymous_pattern_analyzer_role" {
   count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "${var.service_name}-realtime-abuse-detector-role-${var.environment}"
+  name  = "${var.service_name}-anonymous-pattern-analyzer-role-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -140,22 +134,22 @@ resource "aws_iam_role" "realtime_abuse_detector_role" {
   })
 
   tags = merge(var.tags, {
-    Name        = "${var.service_name}-realtime-abuse-detector-role-${var.environment}"
+    Name        = "${var.service_name}-anonymous-pattern-analyzer-role-${var.environment}"
     Environment = var.environment
     Service     = var.service_name
   })
 }
 
-resource "aws_iam_role_policy_attachment" "realtime_abuse_detector_basic" {
+resource "aws_iam_role_policy_attachment" "anonymous_pattern_analyzer_basic" {
   count      = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  role       = aws_iam_role.realtime_abuse_detector_role[0].name
+  role       = aws_iam_role.anonymous_pattern_analyzer_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy" "realtime_abuse_detector_custom" {
+resource "aws_iam_role_policy" "anonymous_pattern_analyzer_custom" {
   count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "RealtimeAbuseDetectorCustomPolicy"
-  role  = aws_iam_role.realtime_abuse_detector_role[0].id
+  name  = "AnonymousPatternAnalyzerCustomPolicy"
+  role  = aws_iam_role.anonymous_pattern_analyzer_role[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -166,12 +160,11 @@ resource "aws_iam_role_policy" "realtime_abuse_detector_custom" {
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
+          "dynamodb:Query"
         ]
         Resource = [
-          aws_dynamodb_table.abuse_tracking[0].arn,
-          "${aws_dynamodb_table.abuse_tracking[0].arn}/index/*"
+          aws_dynamodb_table.anonymous_metrics[0].arn,
+          "${aws_dynamodb_table.anonymous_metrics[0].arn}/index/*"
         ]
       },
       {
@@ -182,8 +175,8 @@ resource "aws_iam_role_policy" "realtime_abuse_detector_custom" {
           "logs:PutLogEvents"
         ]
         Resource = [
-          aws_cloudwatch_log_group.abuse_detection[0].arn,
-          "${aws_cloudwatch_log_group.abuse_detection[0].arn}:*"
+          aws_cloudwatch_log_group.service_analytics[0].arn,
+          "${aws_cloudwatch_log_group.service_analytics[0].arn}:*"
         ]
       },
       {
@@ -194,7 +187,7 @@ resource "aws_iam_role_policy" "realtime_abuse_detector_custom" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "cloudwatch:namespace" = "${var.service_name}/${var.environment}/Security"
+            "cloudwatch:namespace" = "${var.service_name}/${var.environment}/Analytics"
           }
         }
       },
@@ -204,201 +197,76 @@ resource "aws_iam_role_policy" "realtime_abuse_detector_custom" {
           "sns:Publish"
         ]
         Resource = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "wafv2:GetWebACL",
-          "wafv2:UpdateWebACL"
-        ]
-        Resource = var.waf_web_acl_name != null ? "arn:aws:wafv2:*:${data.aws_caller_identity.current.account_id}:global/webacl/${var.waf_web_acl_name}/*" : "*"
-        Condition = var.waf_web_acl_name != null ? {
-          StringEquals = {
-            "aws:RequestTag/Environment" = var.environment
-          }
-        } : {}
       }
     ]
   })
 }
 
-# EventBridge target to trigger real-time abuse detector
-resource "aws_cloudwatch_event_target" "realtime_abuse_detector" {
+# EventBridge target for anonymous pattern analysis (no PII collected)
+resource "aws_cloudwatch_event_target" "anonymous_pattern_analyzer" {
   count     = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  rule      = aws_cloudwatch_event_rule.suspicious_activity[0].name
-  target_id = "RealtimeAbuseDetector"
-  arn       = aws_lambda_function.realtime_abuse_detector[0].arn
+  rule      = aws_cloudwatch_event_rule.anonymous_patterns[0].name
+  target_id = "AnonymousPatternAnalyzer"
+  arn       = aws_lambda_function.anonymous_pattern_analyzer[0].arn
 
   input_transformer {
     input_paths = {
-      sourceIp   = "$.detail.sourceIp"
-      status     = "$.detail.status"
-      timestamp  = "$.detail.timestamp"
-      userAgent  = "$.detail.userAgent"
-      method     = "$.detail.httpMethod"
-      resource   = "$.detail.resource"
+      status    = "$.detail.status"
+      timestamp = "$.detail.timestamp"
+      method    = "$.detail.httpMethod"
+      resource  = "$.detail.resource"
     }
-    
+
     input_template = jsonencode({
-      source_ip  = "<sourceIp>"
-      status     = "<status>"
-      timestamp  = "<timestamp>"
-      user_agent = "<userAgent>"
-      method     = "<method>"
-      resource   = "<resource>"
+      # NOTE: NO IP ADDRESS OR USER-AGENT COLLECTED FOR PRIVACY
+      status      = "<status>"
+      timestamp   = "<timestamp>"
+      method      = "<method>"
+      resource    = "<resource>"
       environment = var.environment
-      service    = var.service_name
+      service     = var.service_name
     })
   }
 }
 
-resource "aws_lambda_permission" "allow_eventbridge_realtime_abuse" {
+resource "aws_lambda_permission" "allow_eventbridge_anonymous_patterns" {
   count         = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
   statement_id  = "AllowExecutionFromEventBridge"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.realtime_abuse_detector[0].function_name
+  function_name = aws_lambda_function.anonymous_pattern_analyzer[0].function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.suspicious_activity[0].arn
+  source_arn    = aws_cloudwatch_event_rule.anonymous_patterns[0].arn
 }
 
-# IP reputation lookup Lambda (for enhanced abuse detection)
-resource "aws_lambda_function" "ip_reputation_checker" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  function_name = "${var.service_name}-ip-reputation-checker-${var.environment}"
-  role          = aws_iam_role.ip_reputation_checker_role[0].arn
-  handler       = "index.handler"
-  runtime       = "python3.11"
-  timeout       = 15
-  memory_size   = 128
+# PRIVACY COMPLIANCE: IP reputation checking removed
+# Individual IP tracking violates user privacy
+# Replaced with aggregate anonymous pattern detection
 
-  filename         = "${path.module}/ip_reputation_checker.zip"
-  source_code_hash = data.archive_file.ip_reputation_checker_zip[0].output_base64sha256
+# PRIVACY COMPLIANCE: IP reputation caching removed
+# Storing IP addresses with reputation data violates user privacy
 
-  environment {
-    variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.ip_reputation_cache[0].name
-      ENVIRONMENT         = var.environment
-      SERVICE_NAME        = var.service_name
-    }
-  }
+# PRIVACY COMPLIANCE: IP reputation checking archive removed
 
-  tags = merge(var.tags, {
-    Name        = "${var.service_name}-ip-reputation-checker-${var.environment}"
-    Environment = var.environment
-    Service     = var.service_name
-    Function    = "ip-reputation-check"
-  })
-}
+# PRIVACY COMPLIANCE: IP reputation checker IAM role removed
 
-# DynamoDB table for IP reputation caching
-resource "aws_dynamodb_table" "ip_reputation_cache" {
+# PRIVACY COMPLIANCE: IP reputation checker policy attachment removed
+
+# PRIVACY COMPLIANCE: IP reputation checker custom policy removed
+
+# Anonymous CloudWatch metrics for usage patterns (no PII)
+resource "aws_cloudwatch_log_metric_filter" "anonymous_url_creation" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "${var.service_name}-ip-reputation-cache-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "ip_address"
 
-  attribute {
-    name = "ip_address"
-    type = "S"
-  }
-
-  ttl {
-    attribute_name = "ttl"
-    enabled        = true
-  }
-
-  tags = merge(var.tags, {
-    Name        = "${var.service_name}-ip-reputation-cache-${var.environment}"
-    Environment = var.environment
-    Service     = var.service_name
-    Purpose     = "ip-reputation-cache"
-  })
-}
-
-# Zip file for IP reputation checker
-data "archive_file" "ip_reputation_checker_zip" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  type        = "zip"
-  output_path = "${path.module}/ip_reputation_checker.zip"
-  
-  source {
-    content = templatefile("${path.module}/templates/ip_reputation_checker.py", {
-      service_name = var.service_name
-      environment  = var.environment
-    })
-    filename = "index.py"
-  }
-}
-
-# IAM role for IP reputation checker
-resource "aws_iam_role" "ip_reputation_checker_role" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "${var.service_name}-ip-reputation-checker-role-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = merge(var.tags, {
-    Name        = "${var.service_name}-ip-reputation-checker-role-${var.environment}"
-    Environment = var.environment
-    Service     = var.service_name
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ip_reputation_checker_basic" {
-  count      = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  role       = aws_iam_role.ip_reputation_checker_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy" "ip_reputation_checker_custom" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "IpReputationCheckerCustomPolicy"
-  role  = aws_iam_role.ip_reputation_checker_role[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:UpdateItem"
-        ]
-        Resource = aws_dynamodb_table.ip_reputation_cache[0].arn
-      }
-    ]
-  })
-}
-
-# Custom CloudWatch metrics for abuse patterns
-resource "aws_cloudwatch_log_metric_filter" "rapid_requests" {
-  count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "${var.service_name}-rapid-requests-${var.environment}"
+  name           = "${var.service_name}-anonymous-url-creation-${var.environment}"
   log_group_name = "/aws/apigateway/${var.api_gateway_name}"
-  pattern        = "[timestamp, request_id, source_ip, method, resource, status, latency] | [timestamp=*T*, source_ip, method, resource=\"/create\", status=\"2*\"]"
+  pattern        = "[timestamp, request_id, method=\"POST\", resource=\"/create\", status=\"2*\", latency]"
 
   metric_transformation {
-    name          = "RapidURLCreation"
-    namespace     = "${var.service_name}/${var.environment}/Abuse"
+    name          = "URLCreationRate"
+    namespace     = "${var.service_name}/${var.environment}/Analytics"
     value         = "1"
     default_value = "0"
-    
+
     dimensions = {
       Environment = var.environment
       Service     = var.service_name
@@ -407,213 +275,46 @@ resource "aws_cloudwatch_log_metric_filter" "rapid_requests" {
   }
 }
 
-resource "aws_cloudwatch_log_metric_filter" "bot_user_agents" {
+# PRIVACY COMPLIANCE: Bot detection based on user-agent removed
+# User-agent strings can contain PII and are privacy-violating
+# Replaced with anonymous HTTP status code analysis
+
+resource "aws_cloudwatch_log_metric_filter" "anonymous_error_patterns" {
   count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "${var.service_name}-bot-user-agents-${var.environment}"
+
+  name           = "${var.service_name}-anonymous-error-patterns-${var.environment}"
   log_group_name = "/aws/apigateway/${var.api_gateway_name}"
-  pattern        = "[timestamp, request_id, source_ip, method, resource, status, latency, user_agent=\"*bot*\" || user_agent=\"*crawler*\" || user_agent=\"*spider*\"]"
+  pattern        = "[timestamp, request_id, method, resource, status=\"404\", latency]"
 
   metric_transformation {
-    name          = "BotRequests"
-    namespace     = "${var.service_name}/${var.environment}/Abuse"
+    name          = "NotFoundRequests"
+    namespace     = "${var.service_name}/${var.environment}/Analytics"
     value         = "1"
     default_value = "0"
-    
+
     dimensions = {
       Environment = var.environment
       Service     = var.service_name
-      Type        = "bot-detection"
+      Type        = "error-analysis"
     }
   }
 }
 
-resource "aws_cloudwatch_log_metric_filter" "scanner_behavior" {
-  count = var.enable_abuse_detection ? 1 : 0
-  
-  name           = "${var.service_name}-scanner-behavior-${var.environment}"
-  log_group_name = "/aws/apigateway/${var.api_gateway_name}"
-  pattern        = "[timestamp, request_id, source_ip, method, resource, status=\"404\", latency]"
+# PRIVACY COMPLIANCE: Automated IP blocking system removed
+# Individual IP blocking based on tracking violates privacy
+# Use WAF rate limiting and other anonymous protection mechanisms
 
-  metric_transformation {
-    name          = "ScannerRequests"
-    namespace     = "${var.service_name}/${var.environment}/Abuse"
-    value         = "1"
-    default_value = "0"
-    
-    dimensions = {
-      Environment = var.environment
-      Service     = var.service_name
-      Type        = "scanner-detection"
-    }
-  }
-}
+# PRIVACY COMPLIANCE: Abuse response handler archive removed
 
-# Automated response system for abuse mitigation
-resource "aws_lambda_function" "abuse_response_handler" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  function_name = "${var.service_name}-abuse-response-handler-${var.environment}"
-  role          = aws_iam_role.abuse_response_handler_role[0].arn
-  handler       = "index.handler"
-  runtime       = "python3.11"
-  timeout       = 60
-  memory_size   = 256
+# PRIVACY COMPLIANCE: Abuse response handler IAM role removed
 
-  filename         = "${path.module}/abuse_response_handler.zip"
-  source_code_hash = data.archive_file.abuse_response_handler_zip[0].output_base64sha256
+# PRIVACY COMPLIANCE: Abuse response handler policy attachment removed
 
-  environment {
-    variables = {
-      DYNAMODB_ABUSE_TABLE = aws_dynamodb_table.abuse_tracking[0].name
-      WAF_WEB_ACL_NAME    = var.waf_web_acl_name != null ? var.waf_web_acl_name : ""
-      SNS_TOPIC_ARN       = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
-      ENVIRONMENT         = var.environment
-      SERVICE_NAME        = var.service_name
-    }
-  }
+# PRIVACY COMPLIANCE: Abuse response handler custom policy removed
 
-  tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-response-handler-${var.environment}"
-    Environment = var.environment
-    Service     = var.service_name
-    Function    = "abuse-response"
-  })
-}
+# PRIVACY COMPLIANCE: Automated abuse alert response removed
+# Individual tracking-based automated responses violate privacy
 
-# Zip file for abuse response handler
-data "archive_file" "abuse_response_handler_zip" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  type        = "zip"
-  output_path = "${path.module}/abuse_response_handler.zip"
-  
-  source {
-    content = templatefile("${path.module}/templates/abuse_response_handler.py", {
-      service_name = var.service_name
-      environment  = var.environment
-    })
-    filename = "index.py"
-  }
-}
+# PRIVACY COMPLIANCE: Abuse response handler event target removed
 
-# IAM role for abuse response handler
-resource "aws_iam_role" "abuse_response_handler_role" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "${var.service_name}-abuse-response-handler-role-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-response-handler-role-${var.environment}"
-    Environment = var.environment
-    Service     = var.service_name
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "abuse_response_handler_basic" {
-  count      = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  role       = aws_iam_role.abuse_response_handler_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy" "abuse_response_handler_custom" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  name  = "AbuseResponseHandlerCustomPolicy"
-  role  = aws_iam_role.abuse_response_handler_role[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:Query",
-          "dynamodb:UpdateItem"
-        ]
-        Resource = [
-          aws_dynamodb_table.abuse_tracking[0].arn,
-          "${aws_dynamodb_table.abuse_tracking[0].arn}/index/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "wafv2:GetWebACL",
-          "wafv2:UpdateWebACL",
-          "wafv2:GetIPSet",
-          "wafv2:UpdateIPSet"
-        ]
-        Resource = var.waf_web_acl_name != null ? [
-          "arn:aws:wafv2:*:${data.aws_caller_identity.current.account_id}:global/webacl/${var.waf_web_acl_name}/*",
-          "arn:aws:wafv2:*:${data.aws_caller_identity.current.account_id}:global/ipset/*"
-        ] : ["*"]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "sns:Publish"
-        ]
-        Resource = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : aws_sns_topic.alerts[0].arn
-      }
-    ]
-  })
-}
-
-# CloudWatch Event Rule to trigger abuse response for high-severity alerts
-resource "aws_cloudwatch_event_rule" "abuse_alert_response" {
-  count = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  
-  name        = "${var.service_name}-abuse-alert-response-${var.environment}"
-  description = "Triggers automated response for abuse detection alerts"
-
-  event_pattern = jsonencode({
-    source      = ["aws.cloudwatch"]
-    detail-type = ["CloudWatch Alarm State Change"]
-    detail = {
-      state = {
-        value = ["ALARM"]
-      }
-      alarmName = [
-        {
-          prefix = "${var.service_name}-abuse-"
-        }
-      ]
-    }
-  })
-
-  tags = merge(var.tags, {
-    Name        = "${var.service_name}-abuse-alert-response-${var.environment}"
-    Environment = var.environment
-    Service     = var.service_name
-    Purpose     = "automated-response"
-  })
-}
-
-resource "aws_cloudwatch_event_target" "abuse_response_handler" {
-  count     = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  rule      = aws_cloudwatch_event_rule.abuse_alert_response[0].name
-  target_id = "AbuseResponseHandler"
-  arn       = aws_lambda_function.abuse_response_handler[0].arn
-}
-
-resource "aws_lambda_permission" "allow_eventbridge_abuse_response" {
-  count         = var.enable_abuse_detection && var.enable_custom_metrics ? 1 : 0
-  statement_id  = "AllowExecutionFromEventBridge"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.abuse_response_handler[0].function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.abuse_alert_response[0].arn
-}
+# PRIVACY COMPLIANCE: Abuse response handler lambda permission removed

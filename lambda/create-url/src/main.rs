@@ -1,7 +1,7 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use chrono::{DateTime, Utc};
-use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 //use lambda_web::{is_running_on_lambda, launch, IntoResponse, RequestExt};
 use nanoid::nanoid;
 use serde_json::Value;
@@ -13,14 +13,16 @@ use validator::Validate;
 // use squrl_shared::base62::encode_base62;
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
-use squrl_shared::models::{CreateUrlRequest, CreateUrlResponse, ErrorResponse, UrlItem, 
-                           ApiGatewayProxyEvent, ApiGatewayProxyResponse, is_api_gateway_event};
+use squrl_shared::models::{
+    ApiGatewayProxyEvent, ApiGatewayProxyResponse, CreateUrlRequest, CreateUrlResponse,
+    ErrorResponse, UrlItem, is_api_gateway_event,
+};
 use squrl_shared::validation::{validate_custom_code, validate_url};
 
 fn init_tracing() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into())
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
         ))
         .with(tracing_subscriber::fmt::layer().json())
         .init();
@@ -29,9 +31,9 @@ fn init_tracing() {
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     init_tracing();
-    
+
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
-    
+
     let dynamodb_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
         // Local development with LocalStack
         let dynamodb_config = aws_sdk_dynamodb::config::Builder::from(&config)
@@ -41,13 +43,15 @@ async fn main() -> Result<(), Error> {
     } else {
         DynamoDbClient::new(&config)
     };
-    
-    let table_name = env::var("DYNAMODB_TABLE_NAME")
-        .unwrap_or_else(|_| "squrl-urls".to_string());
-    
+
+    let table_name = env::var("DYNAMODB_TABLE_NAME").unwrap_or_else(|_| "squrl-urls".to_string());
+
     let db_client = UrlDynamoDbClient::new(dynamodb_client, table_name);
-    
-    run(service_fn(move |event| function_handler(event, db_client.clone()))).await
+
+    run(service_fn(move |event| {
+        function_handler(event, db_client.clone())
+    }))
+    .await
 }
 
 #[instrument(skip(db_client))]
@@ -56,7 +60,7 @@ async fn function_handler(
     db_client: UrlDynamoDbClient,
 ) -> Result<Value, Error> {
     let is_api_gateway = is_api_gateway_event(&event.payload);
-    
+
     match handler_impl(event.payload, &db_client).await {
         Ok(response) => {
             if is_api_gateway {
@@ -78,26 +82,30 @@ async fn handler_impl(
 ) -> Result<Value, UrlShortenerError> {
     let request: CreateUrlRequest = if is_api_gateway_event(&payload) {
         // Parse API Gateway event
-        let api_event: ApiGatewayProxyEvent = serde_json::from_value(payload)
-            .map_err(|e| UrlShortenerError::ValidationError(format!("Invalid API Gateway event: {}", e)))?;
-        
+        let api_event: ApiGatewayProxyEvent = serde_json::from_value(payload).map_err(|e| {
+            UrlShortenerError::ValidationError(format!("Invalid API Gateway event: {}", e))
+        })?;
+
         // Extract body and parse as JSON
-        let body = api_event.body
-            .ok_or_else(|| UrlShortenerError::ValidationError("Missing request body".to_string()))?;
-            
-        serde_json::from_str(&body)
-            .map_err(|e| UrlShortenerError::ValidationError(format!("Invalid JSON in body: {}", e)))?
+        let body = api_event.body.ok_or_else(|| {
+            UrlShortenerError::ValidationError("Missing request body".to_string())
+        })?;
+
+        serde_json::from_str(&body).map_err(|e| {
+            UrlShortenerError::ValidationError(format!("Invalid JSON in body: {}", e))
+        })?
     } else {
         // Direct Lambda invocation
         serde_json::from_value(payload)
             .map_err(|e| UrlShortenerError::ValidationError(e.to_string()))?
     };
-    
-    request.validate()
+
+    request
+        .validate()
         .map_err(|e| UrlShortenerError::ValidationError(e.to_string()))?;
 
     let _validated_url = validate_url(&request.original_url)?;
-    
+
     if let Some(custom_code) = &request.custom_code {
         validate_custom_code(custom_code)?;
     }
@@ -116,9 +124,9 @@ async fn handler_impl(
 
     // Calculate expiration
     let now = Utc::now();
-    let expires_at = request.ttl_hours.map(|hours| {
-        (now + chrono::Duration::hours(hours as i64)).timestamp()
-    });
+    let expires_at = request
+        .ttl_hours
+        .map(|hours| (now + chrono::Duration::hours(hours as i64)).timestamp());
 
     let url_item = UrlItem {
         short_code: short_code.clone(),
@@ -126,7 +134,6 @@ async fn handler_impl(
         created_at: now.to_rfc3339(),
         expires_at,
         click_count: 0,
-        creator_ip: None, // TODO: Extract from Lambda context
         custom_code: request.custom_code.is_some(),
         status: "active".to_string(),
     };
@@ -144,8 +151,7 @@ fn generate_short_code() -> String {
 }
 
 fn create_success_response(url_item: UrlItem) -> Value {
-    let base_url = env::var("SHORT_URL_BASE")
-        .unwrap_or_else(|_| "https://sqrl.co".to_string());
+    let base_url = env::var("SHORT_URL_BASE").unwrap_or_else(|_| "https://sqrl.co".to_string());
     let short_url = format!("{}/{}", base_url, url_item.short_code);
     let expires_at = url_item.expires_at.map(|ts| {
         DateTime::from_timestamp(ts, 0)
@@ -165,11 +171,9 @@ fn create_success_response(url_item: UrlItem) -> Value {
 }
 
 fn create_api_gateway_success_response(response_data: Value) -> Value {
-    let api_response = ApiGatewayProxyResponse::new(
-        200,
-        serde_json::to_string(&response_data).unwrap()
-    );
-    
+    let api_response =
+        ApiGatewayProxyResponse::new(200, serde_json::to_string(&response_data).unwrap());
+
     serde_json::to_value(api_response).unwrap()
 }
 
@@ -183,7 +187,7 @@ fn create_error_response(err: &UrlShortenerError, is_api_gateway: bool) -> Value
     if is_api_gateway {
         let api_response = ApiGatewayProxyResponse::new(
             err.status_code(),
-            serde_json::to_string(&error_response).unwrap()
+            serde_json::to_string(&error_response).unwrap(),
         );
         serde_json::to_value(api_response).unwrap()
     } else {
@@ -200,7 +204,10 @@ mod tests {
     fn test_generate_short_code() {
         let code = generate_short_code();
         assert_eq!(code.len(), 8);
-        assert!(code.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
+        assert!(
+            code.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        );
     }
 
     #[test]
@@ -214,14 +221,14 @@ mod tests {
                 "identity": {"sourceIp": "192.168.1.1"}
             }
         });
-        
+
         assert!(is_api_gateway_event(&api_gateway_event));
 
         // Test direct invocation
         let direct_event = json!({
             "original_url": "https://example.com"
         });
-        
+
         assert!(!is_api_gateway_event(&direct_event));
     }
 
@@ -233,9 +240,9 @@ mod tests {
             "short_url": "https://sqrl.co/abc123",
             "created_at": "2025-08-24T10:30:00Z"
         });
-        
+
         let api_response = create_api_gateway_success_response(response_data);
-        
+
         assert_eq!(api_response["statusCode"], 200);
         assert!(api_response["headers"].is_object());
         assert!(api_response["body"].is_string());

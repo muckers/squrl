@@ -63,9 +63,9 @@ variable "waf_web_acl_name" {
 
 # Log retention variables
 variable "log_retention_days" {
-  description = "Log retention period in days"
+  description = "Log retention period in days - minimal retention for privacy compliance"
   type        = number
-  default     = 14
+  default     = 3
   validation {
     condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.log_retention_days)
     error_message = "Log retention days must be a valid CloudWatch log retention value."
@@ -212,7 +212,7 @@ variable "dashboard_time_range" {
   type        = string
   default     = "PT3H"
   validation {
-    condition = can(regex("^PT\\d+[HM]$", var.dashboard_time_range))
+    condition     = can(regex("^PT\\d+[HM]$", var.dashboard_time_range))
     error_message = "Dashboard time range must be in ISO 8601 duration format (e.g., PT3H, PT30M)."
   }
 }

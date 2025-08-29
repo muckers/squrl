@@ -1,11 +1,12 @@
 # WAF Web ACL for CloudFront Distribution
+# Privacy-compliant: Rate limiting uses IP addresses in-memory but doesn't store PII in logs
 resource "aws_wafv2_web_acl" "main" {
   count = var.enable_waf ? 1 : 0
-  
+
   name  = "squrl-cloudfront-waf-${var.environment}"
   scope = "CLOUDFRONT" # Must be CLOUDFRONT for CloudFront distributions
-  
-  description = "WAF rules for Squrl URL shortener - rate limiting and abuse protection"
+
+  description = "WAF rules for Squrl URL shortener - privacy-compliant rate limiting and abuse protection"
 
   default_action {
     allow {}
@@ -24,7 +25,7 @@ resource "aws_wafv2_web_acl" "main" {
       rate_based_statement {
         limit              = var.rate_limit_requests_per_5min
         aggregate_key_type = "IP"
-        
+
         # Optional: Add scope down statement to only count certain requests
         # scope_down_statement {
         #   not_statement {
@@ -66,7 +67,7 @@ resource "aws_wafv2_web_acl" "main" {
       rate_based_statement {
         limit              = var.create_rate_limit_requests_per_5min
         aggregate_key_type = "IP"
-        
+
         scope_down_statement {
           and_statement {
             statement {
@@ -120,7 +121,7 @@ resource "aws_wafv2_web_acl" "main" {
       rate_based_statement {
         limit              = var.scanner_detection_404_threshold
         aggregate_key_type = "IP"
-        
+
         scope_down_statement {
           byte_match_statement {
             field_to_match {
@@ -245,7 +246,7 @@ resource "aws_wafv2_web_acl" "main" {
   # Rule 6: Geographic Rate Limiting (Optional)
   dynamic "rule" {
     for_each = var.enable_geo_restrictions && length(var.geo_restricted_countries) > 0 ? [1] : []
-    
+
     content {
       name     = "GeographicRateLimit"
       priority = 60
@@ -258,7 +259,7 @@ resource "aws_wafv2_web_acl" "main" {
         rate_based_statement {
           limit              = var.geo_restricted_rate_limit
           aggregate_key_type = "IP"
-          
+
           scope_down_statement {
             geo_match_statement {
               country_codes = var.geo_restricted_countries
@@ -311,7 +312,7 @@ resource "aws_wafv2_web_acl" "main" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
-        
+
         # Exclude some rules that might cause false positives
         rule_action_override {
           name = "GenericRFI_BODY"
@@ -354,7 +355,7 @@ resource "aws_cloudwatch_log_group" "waf_logs" {
   count             = var.enable_waf && var.enable_waf_logging ? 1 : 0
   name              = "/aws/wafv2/squrl-cloudfront-${var.environment}"
   retention_in_days = var.waf_log_retention_days
-  
+
   tags = merge(var.tags, {
     Name        = "squrl-waf-logs-${var.environment}"
     Environment = var.environment
@@ -367,16 +368,41 @@ resource "aws_wafv2_web_acl_logging_configuration" "main" {
   resource_arn            = aws_wafv2_web_acl.main[0].arn
   log_destination_configs = ["${aws_cloudwatch_log_group.waf_logs[0].arn}:*"]
 
-  # Redact sensitive fields from logs
+  # Redact all PII and sensitive fields from logs for privacy compliance
+  # Note: IP addresses are still used for rate limiting but redacted from logs
   redacted_fields {
     single_header {
       name = "authorization"
     }
   }
-  
+
   redacted_fields {
     single_header {
       name = "cookie"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "user-agent"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "referer"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "x-forwarded-for"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "x-real-ip"
     }
   }
 
@@ -398,7 +424,7 @@ resource "aws_wafv2_web_acl_logging_configuration" "main" {
 # CloudWatch Alarms for WAF Metrics
 resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
   count = var.enable_waf ? 1 : 0
-  
+
   alarm_name          = "squrl-waf-blocked-requests-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -424,7 +450,7 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
 
 resource "aws_cloudwatch_metric_alarm" "waf_rate_limit_triggered" {
   count = var.enable_waf ? 1 : 0
-  
+
   alarm_name          = "squrl-waf-rate-limit-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"

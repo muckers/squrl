@@ -4,28 +4,28 @@ use thiserror::Error;
 pub enum UrlShortenerError {
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
-    
+
     #[error("Short code already exists: {0}")]
     ShortCodeExists(String),
-    
+
     #[error("Short code not found: {0}")]
     ShortCodeNotFound(String),
-    
+
     #[error("URL has expired")]
     UrlExpired,
-    
+
     #[error("Database error: {0}")]
     DatabaseError(String),
-    
+
     #[error("Validation error: {0}")]
     ValidationError(String),
-    
+
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
-    
+
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
-    
+
     #[error("Internal server error: {0}")]
     InternalError(#[from] anyhow::Error),
 }

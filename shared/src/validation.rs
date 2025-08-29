@@ -1,14 +1,14 @@
-use url::Url;
 use crate::error::UrlShortenerError;
+use url::Url;
 
 pub fn validate_url(url_str: &str) -> Result<Url, UrlShortenerError> {
-    let url = Url::parse(url_str)
-        .map_err(|_| UrlShortenerError::InvalidUrl(url_str.to_string()))?;
-    
+    let url =
+        Url::parse(url_str).map_err(|_| UrlShortenerError::InvalidUrl(url_str.to_string()))?;
+
     match url.scheme() {
         "http" | "https" => Ok(url),
         _ => Err(UrlShortenerError::InvalidUrl(
-            "Only HTTP and HTTPS URLs are allowed".to_string()
+            "Only HTTP and HTTPS URLs are allowed".to_string(),
         )),
     }
 }
@@ -16,16 +16,19 @@ pub fn validate_url(url_str: &str) -> Result<Url, UrlShortenerError> {
 pub fn validate_custom_code(code: &str) -> Result<(), UrlShortenerError> {
     if code.len() < 3 || code.len() > 20 {
         return Err(UrlShortenerError::ValidationError(
-            "Custom code must be between 3 and 20 characters".to_string()
+            "Custom code must be between 3 and 20 characters".to_string(),
         ));
     }
-    
-    if !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+
+    if !code
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
         return Err(UrlShortenerError::ValidationError(
-            "Custom code can only contain letters, numbers, underscores, and hyphens".to_string()
+            "Custom code can only contain letters, numbers, underscores, and hyphens".to_string(),
         ));
     }
-    
+
     Ok(())
 }
 

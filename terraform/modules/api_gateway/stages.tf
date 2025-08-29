@@ -55,6 +55,8 @@ resource "aws_api_gateway_stage" "main" {
     for_each = var.enable_access_logs ? [1] : []
     content {
       destination_arn = aws_cloudwatch_log_group.api_gateway_access[0].arn
+      # Privacy-compliant log format - removes PII (sourceIp, userAgent)
+      # while maintaining operational monitoring capability
       format = jsonencode({
         requestId      = "$context.requestId"
         requestTime    = "$context.requestTime"
@@ -67,8 +69,6 @@ resource "aws_api_gateway_stage" "main" {
         responseTime   = "$context.responseTime"
         errorMessage   = "$context.error.message"
         errorType      = "$context.error.messageString"
-        sourceIp       = "$context.identity.sourceIp"
-        userAgent      = "$context.identity.userAgent"
         apiId          = "$context.apiId"
         stage          = "$context.stage"
         integration = {

@@ -1,9 +1,9 @@
 # CloudWatch Alarms for comprehensive monitoring and alerting
 
 locals {
-  sns_topic_arn = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : (var.enable_alarms ? aws_sns_topic.alerts[0].arn : "")
+  sns_topic_arn          = var.alarm_sns_topic_arn != null ? var.alarm_sns_topic_arn : (var.enable_alarms ? aws_sns_topic.alerts[0].arn : "")
   cost_threshold_monthly = var.environment == "dev" ? var.monthly_cost_threshold_dev : var.monthly_cost_threshold_prod
-  cost_threshold_daily = local.cost_threshold_monthly * var.daily_cost_threshold_multiplier / 30
+  cost_threshold_daily   = local.cost_threshold_monthly * var.daily_cost_threshold_multiplier / 30
 }
 
 # === API GATEWAY ALARMS ===
@@ -11,7 +11,7 @@ locals {
 # High error rate alarm
 resource "aws_cloudwatch_metric_alarm" "api_gateway_high_error_rate" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-api-gateway-high-error-rate-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -41,7 +41,7 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_high_error_rate" {
 # Server error alarm
 resource "aws_cloudwatch_metric_alarm" "api_gateway_server_errors" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-api-gateway-server-errors-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
@@ -71,7 +71,7 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_server_errors" {
 # High latency alarm
 resource "aws_cloudwatch_metric_alarm" "high_latency" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-api-gateway-high-latency-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -101,7 +101,7 @@ resource "aws_cloudwatch_metric_alarm" "high_latency" {
 # API Gateway throttling alarm
 resource "aws_cloudwatch_metric_alarm" "api_gateway_throttling" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-api-gateway-throttling-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
@@ -133,7 +133,7 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_throttling" {
 # Lambda error rate alarm for create-url function
 resource "aws_cloudwatch_metric_alarm" "lambda_create_url_errors" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-lambda-create-url-errors-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -164,7 +164,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_create_url_errors" {
 # Lambda error rate alarm for redirect function
 resource "aws_cloudwatch_metric_alarm" "lambda_redirect_errors" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-lambda-redirect-errors-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -172,7 +172,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_redirect_errors" {
   namespace           = "AWS/Lambda"
   period              = "300"
   statistic           = "Sum"
-  threshold           = "10"  # Higher threshold as redirect has more traffic
+  threshold           = "10" # Higher threshold as redirect has more traffic
   alarm_description   = "This metric monitors errors in the redirect Lambda function"
   alarm_actions       = [local.sns_topic_arn]
   ok_actions          = [local.sns_topic_arn]
@@ -195,7 +195,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_redirect_errors" {
 # Lambda error rate alarm for analytics function
 resource "aws_cloudwatch_metric_alarm" "lambda_analytics_errors" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-lambda-analytics-errors-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "3"
@@ -226,18 +226,18 @@ resource "aws_cloudwatch_metric_alarm" "lambda_analytics_errors" {
 # Composite Lambda error alarm
 resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-lambda-high-error-rate-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
-  
+
   metric_query {
-    id = "error_rate"
-    expression = "(errors_create + errors_redirect + errors_analytics) / (invocations_create + invocations_redirect + invocations_analytics) * 100"
-    label = "Lambda Error Rate %"
+    id          = "error_rate"
+    expression  = "(errors_create + errors_redirect + errors_analytics) / (invocations_create + invocations_redirect + invocations_analytics) * 100"
+    label       = "Lambda Error Rate %"
     return_data = true
   }
-  
+
   metric_query {
     id = "errors_create"
     metric {
@@ -250,7 +250,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
       }
     }
   }
-  
+
   metric_query {
     id = "errors_redirect"
     metric {
@@ -263,7 +263,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
       }
     }
   }
-  
+
   metric_query {
     id = "errors_analytics"
     metric {
@@ -276,7 +276,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
       }
     }
   }
-  
+
   metric_query {
     id = "invocations_create"
     metric {
@@ -289,7 +289,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
       }
     }
   }
-  
+
   metric_query {
     id = "invocations_redirect"
     metric {
@@ -302,7 +302,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
       }
     }
   }
-  
+
   metric_query {
     id = "invocations_analytics"
     metric {
@@ -315,7 +315,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
       }
     }
   }
-  
+
   threshold          = var.error_rate_threshold
   alarm_description  = "This metric monitors overall Lambda error rate across all functions"
   alarm_actions      = [local.sns_topic_arn]
@@ -334,7 +334,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_error_rate" {
 # Lambda throttling alarms
 resource "aws_cloudwatch_metric_alarm" "lambda_throttling" {
   count = var.enable_alarms ? length(values(var.lambda_function_names)) : 0
-  
+
   alarm_name          = "${var.service_name}-lambda-throttling-${element(keys(var.lambda_function_names), count.index)}-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
@@ -365,7 +365,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_throttling" {
 # Lambda duration alarm (detecting performance degradation)
 resource "aws_cloudwatch_metric_alarm" "lambda_high_duration" {
   count = var.enable_alarms ? length(values(var.lambda_function_names)) : 0
-  
+
   alarm_name          = "${var.service_name}-lambda-high-duration-${element(keys(var.lambda_function_names), count.index)}-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "3"
@@ -375,11 +375,11 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_duration" {
   statistic           = "Average"
   threshold = element(keys(var.lambda_function_names), count.index) == "create_url" ? "5000" : (
     element(keys(var.lambda_function_names), count.index) == "redirect" ? "2000" : "15000"
-  )  # Different thresholds per function
-  alarm_description   = "This metric monitors Lambda duration for ${element(keys(var.lambda_function_names), count.index)} function"
-  alarm_actions       = [local.sns_topic_arn]
-  ok_actions          = [local.sns_topic_arn]
-  treat_missing_data  = "notBreaching"
+  ) # Different thresholds per function
+  alarm_description  = "This metric monitors Lambda duration for ${element(keys(var.lambda_function_names), count.index)} function"
+  alarm_actions      = [local.sns_topic_arn]
+  ok_actions         = [local.sns_topic_arn]
+  treat_missing_data = "notBreaching"
 
   dimensions = {
     FunctionName = element(values(var.lambda_function_names), count.index)
@@ -400,7 +400,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_high_duration" {
 # DynamoDB read throttling alarm
 resource "aws_cloudwatch_metric_alarm" "dynamodb_read_throttling" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-dynamodb-read-throttling-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -431,7 +431,7 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_read_throttling" {
 # DynamoDB write throttling alarm
 resource "aws_cloudwatch_metric_alarm" "dynamodb_write_throttling" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-dynamodb-write-throttling-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -462,7 +462,7 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_write_throttling" {
 # DynamoDB errors alarm
 resource "aws_cloudwatch_metric_alarm" "dynamodb_errors" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-dynamodb-errors-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -494,7 +494,7 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_errors" {
 # CloudFront cache hit rate alarm
 resource "aws_cloudwatch_metric_alarm" "cloudfront_low_cache_hit_rate" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-cloudfront-low-cache-hit-rate-${var.environment}"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = "3"
@@ -525,7 +525,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_low_cache_hit_rate" {
 # CloudFront origin latency alarm
 resource "aws_cloudwatch_metric_alarm" "cloudfront_high_origin_latency" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-cloudfront-high-origin-latency-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -558,13 +558,13 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_high_origin_latency" {
 # Daily cost alarm
 resource "aws_cloudwatch_metric_alarm" "high_daily_cost" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-high-daily-cost-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
   metric_name         = "EstimatedCharges"
   namespace           = "AWS/Billing"
-  period              = "86400"  # 24 hours
+  period              = "86400" # 24 hours
   statistic           = "Maximum"
   threshold           = local.cost_threshold_daily
   alarm_description   = "This metric monitors daily AWS costs for ${var.service_name}"
@@ -590,15 +590,15 @@ resource "aws_cloudwatch_metric_alarm" "high_daily_cost" {
 # High request volume alarm
 resource "aws_cloudwatch_metric_alarm" "abuse_high_request_volume" {
   count = var.enable_alarms && var.enable_abuse_detection ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-abuse-high-request-volume-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
   metric_name         = "Count"
   namespace           = "AWS/ApiGateway"
-  period              = "300"  # 5 minutes
+  period              = "300" # 5 minutes
   statistic           = "Sum"
-  threshold           = var.abuse_requests_per_ip_threshold / 12  # 5-minute threshold
+  threshold           = var.abuse_requests_per_ip_threshold / 12 # 5-minute threshold
   alarm_description   = "This metric monitors for potential abuse - high request volume"
   alarm_actions       = [local.sns_topic_arn]
   ok_actions          = [local.sns_topic_arn]
@@ -621,15 +621,15 @@ resource "aws_cloudwatch_metric_alarm" "abuse_high_request_volume" {
 # High URL creation rate alarm
 resource "aws_cloudwatch_metric_alarm" "abuse_high_url_creation" {
   count = var.enable_alarms && var.enable_abuse_detection ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-abuse-high-url-creation-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
   metric_name         = "Count"
   namespace           = "AWS/ApiGateway"
-  period              = "3600"  # 1 hour
+  period              = "3600" # 1 hour
   statistic           = "Sum"
-  threshold           = var.abuse_urls_per_ip_threshold * 5  # Allow some buffer
+  threshold           = var.abuse_urls_per_ip_threshold * 5 # Allow some buffer
   alarm_description   = "This metric monitors for potential URL creation abuse"
   alarm_actions       = [local.sns_topic_arn]
   ok_actions          = [local.sns_topic_arn]
@@ -654,7 +654,7 @@ resource "aws_cloudwatch_metric_alarm" "abuse_high_url_creation" {
 # Custom abuse detection metrics alarms
 resource "aws_cloudwatch_metric_alarm" "custom_abuse_detection" {
   count = var.enable_alarms && var.enable_abuse_detection && var.enable_custom_metrics ? 3 : 0
-  
+
   alarm_name          = "${var.service_name}-custom-abuse-${local.abuse_pattern_names[count.index]}-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "1"
@@ -693,7 +693,7 @@ locals {
 # WAF blocked requests alarm (if WAF is enabled)
 resource "aws_cloudwatch_metric_alarm" "waf_high_blocked_requests" {
   count = var.enable_alarms && var.waf_web_acl_name != null ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-waf-high-blocked-requests-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -727,7 +727,7 @@ resource "aws_cloudwatch_metric_alarm" "waf_high_blocked_requests" {
 # Kinesis stream record processing alarm
 resource "aws_cloudwatch_metric_alarm" "kinesis_processing_failure" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-kinesis-processing-failure-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -757,7 +757,7 @@ resource "aws_cloudwatch_metric_alarm" "kinesis_processing_failure" {
 # Kinesis iterator age alarm (backlog detection)
 resource "aws_cloudwatch_metric_alarm" "kinesis_high_iterator_age" {
   count = var.enable_alarms ? 1 : 0
-  
+
   alarm_name          = "${var.service_name}-kinesis-high-iterator-age-${var.environment}"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = "2"
@@ -765,7 +765,7 @@ resource "aws_cloudwatch_metric_alarm" "kinesis_high_iterator_age" {
   namespace           = "AWS/Kinesis"
   period              = "300"
   statistic           = "Maximum"
-  threshold           = "60000"  # 1 minute
+  threshold           = "60000" # 1 minute
   alarm_description   = "This metric monitors Kinesis stream processing backlog"
   alarm_actions       = [local.sns_topic_arn]
   ok_actions          = [local.sns_topic_arn]

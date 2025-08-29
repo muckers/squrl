@@ -6,10 +6,10 @@ use validator::Validate;
 pub struct CreateUrlRequest {
     #[validate(url)]
     pub original_url: String,
-    
+
     #[validate(length(min = 3, max = 20))]
     pub custom_code: Option<String>,
-    
+
     #[validate(range(min = 1, max = 87600))]
     pub ttl_hours: Option<u32>,
 }
@@ -26,9 +26,6 @@ pub struct CreateUrlResponse {
 #[derive(Debug, Deserialize)]
 pub struct RedirectRequest {
     pub short_code: String,
-    pub client_ip: Option<String>,
-    pub user_agent: Option<String>,
-    pub referer: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,11 +38,6 @@ pub struct RedirectResponse {
 pub struct AnalyticsEvent {
     pub short_code: String,
     pub timestamp: String,
-    pub client_ip: Option<String>,
-    pub user_agent: Option<String>,
-    pub referer: Option<String>,
-    pub country: Option<String>,
-    pub city: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,7 +54,6 @@ pub struct UrlItem {
     pub created_at: String,
     pub expires_at: Option<i64>,
     pub click_count: u64,
-    pub creator_ip: Option<String>,
     pub custom_code: bool,
     pub status: String,
 }
@@ -110,8 +101,14 @@ impl ApiGatewayProxyResponse {
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
         headers.insert("Access-Control-Allow-Origin".to_string(), "*".to_string());
-        headers.insert("Access-Control-Allow-Headers".to_string(), "Content-Type".to_string());
-        headers.insert("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string());
+        headers.insert(
+            "Access-Control-Allow-Headers".to_string(),
+            "Content-Type".to_string(),
+        );
+        headers.insert(
+            "Access-Control-Allow-Methods".to_string(),
+            "GET, POST, OPTIONS".to_string(),
+        );
 
         Self {
             status_code,
