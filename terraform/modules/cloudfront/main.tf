@@ -91,7 +91,7 @@ resource "aws_cloudfront_distribution" "main" {
   # Cache behavior for short code redirects - catch paths that look like short codes
   # Using pattern to match short codes while avoiding conflicts with static files
   ordered_cache_behavior {
-    path_pattern             = "/????????*"
+    path_pattern             = "/????????"
     target_origin_id         = "api-gateway-${var.environment}"
     viewer_protocol_policy   = "redirect-to-https"
     allowed_methods          = ["GET", "HEAD", "OPTIONS"]

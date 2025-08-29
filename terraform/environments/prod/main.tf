@@ -380,8 +380,8 @@ module "cloudfront" {
   custom_domain_name = "squrl.pub"
   certificate_arn    = "arn:aws:acm:us-east-1:634280252303:certificate/73c30742-3f2b-4e2c-95b4-f97367ee1514"
 
-  # Enable WAF and logging for production
-  enable_waf_logging = true
+  # Enable WAF for production (temporarily disable logging due to CloudWatch log group ARN issue)
+  enable_waf_logging = false
   enable_waf         = true
 
   # Production rate limits
