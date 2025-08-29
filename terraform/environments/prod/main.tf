@@ -19,12 +19,78 @@ provider "aws" {
   region = var.aws_region
 }
 
+# KMS module for encryption - Production configuration with all keys enabled
+module "kms" {
+  source = "../../modules/kms"
+
+  environment = var.environment
+  
+  # Enable all keys for production security
+  enable_dynamodb_key        = true
+  enable_s3_key             = true   # Enable for production data protection
+  enable_lambda_key         = true   # Enable for production environment security
+  enable_secrets_manager_key = true
+  enable_parameter_store_key = true
+  enable_kinesis_key        = true
+  enable_logs_key           = true   # Enable for production log encryption
+
+  # Production key configuration
+  enable_key_rotation = true   # Enable automatic key rotation for production
+  key_deletion_window = 30     # Standard 30-day deletion window for production
+
+  tags = local.common_tags
+}
+
+# Secrets Manager module for API keys and secrets
+module "secrets_manager" {
+  source = "../../modules/secrets-manager"
+
+  environment = var.environment
+  kms_key_arn = module.kms.secrets_manager_key_arn
+
+  # Production secrets configuration
+  secrets = var.application_secrets
+
+  # Enable rotation for production
+  enable_automatic_rotation = var.enable_secret_rotation
+  create_rotation_lambda    = var.enable_secret_rotation
+
+  tags = local.common_tags
+}
+
+# Parameter Store module for configuration
+module "parameter_store" {
+  source = "../../modules/parameter-store"
+
+  environment = var.environment
+  app_name    = "squrl"
+  
+  # Use KMS key for SecureString parameters
+  default_kms_key_id = module.kms.parameter_store_key_id
+
+  # Production parameter configuration
+  parameters = var.application_parameters
+  
+  # Feature flags for production
+  feature_flags = var.feature_flags
+
+  # Production-specific settings
+  create_parameter_group     = true  # Enable for better organization
+  create_write_policy        = false # Restrict writes in production
+  enable_parameter_logging   = true  # Enable logging for audit
+  parameter_log_retention    = 90    # Longer retention for production
+
+  tags = local.common_tags
+}
+
 # Keep existing resources
 module "dynamodb" {
   source = "../../modules/dynamodb"
 
   table_name  = "squrl-urls-${var.environment}"
   environment = var.environment
+  kms_key_id  = module.kms.dynamodb_key_arn  # Use customer-managed KMS key
+  tags        = local.common_tags
 }
 
 module "create_url_lambda" {
@@ -34,13 +100,27 @@ module "create_url_lambda" {
   lambda_zip_path     = "../../../target/lambda/create-url/bootstrap.zip"
   dynamodb_table_name = module.dynamodb.table_name
   dynamodb_table_arn  = module.dynamodb.table_arn
-  memory_size         = 256
-  timeout             = 10
-  rust_log_level      = "warn"
+  memory_size         = var.create_url_lambda_memory_size
+  timeout             = var.create_url_lambda_timeout
+  rust_log_level      = var.lambda_log_level
+  environment         = var.environment
 
-  additional_env_vars = {
+  # Production Lambda configuration
+  kms_key_arn = module.kms.lambda_key_arn
+
+  # Enhanced environment variables for production
+  additional_env_vars = merge({
     SHORT_URL_BASE = "https://squrl.pub"
+    ENVIRONMENT    = var.environment
+  }, 
+  module.parameter_store.lambda_environment_variables,
+  {
+    SECRETS_MANAGER_REGION = var.aws_region
   }
+  )
+
+  # Pass Secrets Manager ARNs for access (supported by lambda module)
+  secrets_manager_arns = values(module.secrets_manager.secret_arns)
 
   tags = local.common_tags
 }
@@ -53,13 +133,27 @@ module "redirect_lambda" {
   dynamodb_table_name = module.dynamodb.table_name
   dynamodb_table_arn  = module.dynamodb.table_arn
   kinesis_stream_arn  = aws_kinesis_stream.analytics.arn
-  memory_size         = 128
-  timeout             = 5
-  rust_log_level      = "warn"
+  memory_size         = var.redirect_lambda_memory_size
+  timeout             = var.redirect_lambda_timeout
+  rust_log_level      = var.lambda_log_level
+  environment         = var.environment
 
-  additional_env_vars = {
+  # Production Lambda configuration
+  kms_key_arn = module.kms.lambda_key_arn
+
+  # Enhanced environment variables for production
+  additional_env_vars = merge({
     KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
+    ENVIRONMENT         = var.environment
+  }, 
+  module.parameter_store.lambda_environment_variables,
+  {
+    SECRETS_MANAGER_REGION = var.aws_region
   }
+  )
+
+  # Pass Secrets Manager ARNs for access (supported by lambda module)
+  secrets_manager_arns = values(module.secrets_manager.secret_arns)
 
   tags = local.common_tags
 }
@@ -73,20 +167,37 @@ module "analytics_lambda" {
   dynamodb_table_arn       = module.dynamodb.table_arn
   kinesis_stream_arn       = aws_kinesis_stream.analytics.arn
   kinesis_read_permissions = true
-  memory_size              = 512
-  timeout                  = 30
-  rust_log_level           = "warn"
+  memory_size              = var.analytics_lambda_memory_size
+  timeout                  = var.analytics_lambda_timeout
+  rust_log_level           = var.lambda_log_level
+  environment              = var.environment
+
+  # Production Lambda configuration
+  kms_key_arn = module.kms.lambda_key_arn
+
+  # Enhanced environment variables for production
+  additional_env_vars = merge({
+    ENVIRONMENT = var.environment
+  }, 
+  module.parameter_store.lambda_environment_variables,
+  {
+    SECRETS_MANAGER_REGION = var.aws_region
+  }
+  )
+
+  # Pass Secrets Manager ARNs for access (supported by lambda module)
+  secrets_manager_arns = values(module.secrets_manager.secret_arns)
 
   tags = local.common_tags
 }
 
 resource "aws_kinesis_stream" "analytics" {
   name             = "squrl-analytics-${var.environment}"
-  shard_count      = 1
-  retention_period = 24
+  shard_count      = var.kinesis_shard_count
+  retention_period = var.kinesis_retention_period
 
   encryption_type = "KMS"
-  kms_key_id      = "alias/aws/kinesis"
+  kms_key_id      = module.kms.kinesis_key_id  # Use customer-managed KMS key
 
   tags = local.common_tags
 }
@@ -95,6 +206,71 @@ resource "aws_lambda_event_source_mapping" "analytics_kinesis" {
   event_source_arn  = aws_kinesis_stream.analytics.arn
   function_name     = module.analytics_lambda.function_name
   starting_position = "LATEST"
+}
+
+# API Gateway WAF module for security - Production configuration
+module "api_gateway_waf" {
+  source = "../../modules/api-gateway-waf"
+
+  environment = var.environment
+  
+  # API Gateway stage ARN will be provided after API Gateway is created
+  api_gateway_stage_arn = aws_api_gateway_stage.main.arn
+  
+  # Production WAF settings (more restrictive)
+  enable_waf                               = true
+  rate_limit_requests_per_5min             = var.waf_rate_limit_requests_per_5min
+  create_rate_limit_requests_per_5min      = var.waf_create_rate_limit_requests_per_5min
+  scanner_detection_404_threshold          = var.waf_scanner_detection_404_threshold
+  max_request_body_size_kb                 = 32   # Stricter size limit for production
+  max_uri_length                           = 1024 # Stricter length limit for production
+  
+  # Enable security features for production
+  enable_geo_restrictions = var.enable_geo_restrictions
+  geo_restricted_countries = var.geo_restricted_countries
+  enable_bot_control      = var.enable_bot_control
+  bot_control_inspection_level = var.bot_control_inspection_level
+  enable_waf_logging      = true  # Enable logging for production
+  waf_log_retention_days  = var.waf_log_retention_days
+  
+  # Alarm configuration
+  enable_cloudwatch_alarms = true
+  alarm_sns_topic_arn      = module.monitoring.alerts_sns_topic_arn
+
+  tags = local.common_tags
+}
+
+# VPC Endpoints module for secure AWS service access
+module "vpc_endpoints" {
+  source = "../../modules/vpc-endpoints"
+  
+  count = var.enable_vpc_endpoints ? 1 : 0
+
+  environment = var.environment
+  
+  # VPC configuration - create production VPC with multiple AZs
+  create_vpc = var.create_vpc_for_endpoints
+  vpc_cidr   = var.vpc_cidr
+  
+  # Multi-AZ configuration for high availability
+  availability_zones     = var.availability_zones
+  private_subnet_cidrs   = var.private_subnet_cidrs
+  public_subnet_cidrs    = var.public_subnet_cidrs
+  
+  # NAT Gateway for internet access (required for Lambda in VPC)
+  create_nat_gateway = var.create_nat_gateway
+  
+  # Enable all necessary endpoints for production
+  enable_dynamodb_endpoint        = true   # Gateway endpoint - free
+  enable_s3_endpoint             = true   # Gateway endpoint - free
+  enable_secrets_manager_endpoint = true   # Interface endpoint - has cost
+  enable_parameter_store_endpoint = true   # Interface endpoint - has cost
+  enable_kms_endpoint            = true   # Interface endpoint - has cost
+  enable_kinesis_endpoint        = true   # Interface endpoint - has cost
+  enable_lambda_endpoint         = var.enable_lambda_vpc_endpoint
+  enable_logs_endpoint           = true   # Interface endpoint - has cost
+
+  tags = local.common_tags
 }
 
 # Simple API Gateway setup
@@ -352,6 +528,42 @@ resource "aws_api_gateway_stage" "main" {
   rest_api_id   = aws_api_gateway_rest_api.squrl.id
   stage_name    = "v1"
 
+  # Enable comprehensive logging and tracing for production
+  xray_tracing_enabled = var.enable_xray_tracing
+  
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway_access_logs.arn
+    format = jsonencode({
+      requestId              = "$context.requestId"
+      extendedRequestId      = "$context.extendedRequestId"
+      ip                     = "$context.identity.sourceIp"
+      caller                 = "$context.identity.caller"
+      user                   = "$context.identity.user"
+      requestTime            = "$context.requestTime"
+      httpMethod             = "$context.httpMethod"
+      resourcePath           = "$context.resourcePath"
+      status                 = "$context.status"
+      protocol               = "$context.protocol"
+      responseLength         = "$context.responseLength"
+      requestLength          = "$context.requestLength"
+      responseTime           = "$context.responseTime"
+      integrationRequestId   = "$context.integration.requestId"
+      integrationStatus      = "$context.integration.status"
+      integrationLatency     = "$context.integration.latency"
+      integrationServiceTime = "$context.integration.integrationStatus"
+      userAgent             = "$context.identity.userAgent"
+    })
+  }
+
+  tags = local.common_tags
+}
+
+# CloudWatch log group for API Gateway access logs
+resource "aws_cloudwatch_log_group" "api_gateway_access_logs" {
+  name              = "/aws/apigateway/${aws_api_gateway_rest_api.squrl.name}"
+  retention_in_days = var.api_gateway_log_retention_days
+  kms_key_id        = module.kms.logs_key_arn  # Encrypt logs in production
+  
   tags = local.common_tags
 }
 
@@ -361,6 +573,19 @@ module "static_hosting" {
 
   bucket_name = "squrl-web-ui-${var.environment}"
   environment = var.environment
+  
+  # Enhanced security for production
+  kms_key_id        = module.kms.s3_key_arn
+  enable_versioning = true
+  enable_encryption = true
+  
+  # Enable lifecycle management for cost optimization
+  enable_lifecycle_management      = true
+  old_version_expiration_days     = 90  # Keep old versions for 90 days
+  multipart_upload_cleanup_days   = 7   # Clean up incomplete uploads after 7 days
+  
+  # Enable notifications for monitoring
+  enable_notifications = true
 
   tags = local.common_tags
 }

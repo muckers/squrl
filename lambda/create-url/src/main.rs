@@ -1,12 +1,13 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
+use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use chrono::{DateTime, Utc};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 //use lambda_web::{is_running_on_lambda, launch, IntoResponse, RequestExt};
 use nanoid::nanoid;
 use serde_json::Value;
 use std::env;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use validator::Validate;
 
@@ -15,6 +16,7 @@ use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
 use squrl_shared::models::{CreateUrlRequest, CreateUrlResponse, ErrorResponse, UrlItem, 
                            ApiGatewayProxyEvent, ApiGatewayProxyResponse, is_api_gateway_event};
+use squrl_shared::secrets::{SecretsManagerConfig, AppConfig};
 use squrl_shared::validation::{validate_custom_code, validate_url};
 
 fn init_tracing() {
@@ -26,38 +28,67 @@ fn init_tracing() {
         .init();
 }
 
+#[derive(Clone)]
+struct AppState {
+    db_client: UrlDynamoDbClient,
+    app_config: AppConfig,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     init_tracing();
     
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
     
+    // Initialize AWS clients
     let dynamodb_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
         // Local development with LocalStack
         let dynamodb_config = aws_sdk_dynamodb::config::Builder::from(&config)
-            .endpoint_url(endpoint_url)
+            .endpoint_url(endpoint_url.clone())
             .build();
         DynamoDbClient::from_conf(dynamodb_config)
     } else {
         DynamoDbClient::new(&config)
     };
+
+    let secrets_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
+        // Local development with LocalStack
+        let secrets_config = aws_sdk_secretsmanager::config::Builder::from(&config)
+            .endpoint_url(endpoint_url)
+            .build();
+        Some(SecretsManagerConfig::new(SecretsManagerClient::from_conf(secrets_config)))
+    } else {
+        Some(SecretsManagerConfig::new(SecretsManagerClient::new(&config)))
+    };
+
+    // Load application configuration from Secrets Manager with fallback to env vars
+    info!("Loading application configuration...");
+    let app_config = AppConfig::load_auto(secrets_client.as_ref()).await
+        .map_err(|e| {
+            error!("Failed to load application configuration: {}", e);
+            format!("Configuration error: {}", e)
+        })?;
+
+    info!(
+        table_name = %app_config.dynamodb_table_name,
+        short_url_base = %app_config.short_url_base,
+        "Application configuration loaded successfully"
+    );
     
-    let table_name = env::var("DYNAMODB_TABLE_NAME")
-        .unwrap_or_else(|_| "squrl-urls".to_string());
+    let db_client = UrlDynamoDbClient::new(dynamodb_client, app_config.dynamodb_table_name.clone());
+    let app_state = AppState { db_client, app_config };
     
-    let db_client = UrlDynamoDbClient::new(dynamodb_client, table_name);
-    
-    run(service_fn(move |event| function_handler(event, db_client.clone()))).await
+    run(service_fn(move |event| function_handler(event, app_state.clone()))).await
 }
 
-#[instrument(skip(db_client))]
+#[instrument(skip(app_state))]
 async fn function_handler(
     event: LambdaEvent<Value>,
-    db_client: UrlDynamoDbClient,
+    app_state: AppState,
 ) -> Result<Value, Error> {
     let is_api_gateway = is_api_gateway_event(&event.payload);
     
-    match handler_impl(event.payload, &db_client).await {
+    match handler_impl(event.payload, &app_state).await {
         Ok(response) => {
             if is_api_gateway {
                 Ok(create_api_gateway_success_response(response))
@@ -74,7 +105,7 @@ async fn function_handler(
 
 async fn handler_impl(
     payload: Value,
-    db_client: &UrlDynamoDbClient,
+    app_state: &AppState,
 ) -> Result<Value, UrlShortenerError> {
     let request: CreateUrlRequest = if is_api_gateway_event(&payload) {
         // Parse API Gateway event
@@ -103,8 +134,8 @@ async fn handler_impl(
     }
 
     // Check for existing URL
-    if let Some(existing_item) = db_client.find_existing_url(&request.original_url).await? {
-        return Ok(create_success_response(existing_item));
+    if let Some(existing_item) = app_state.db_client.find_existing_url(&request.original_url).await? {
+        return Ok(create_success_response(existing_item, &app_state.app_config));
     }
 
     // Generate short code
@@ -132,9 +163,9 @@ async fn handler_impl(
     };
 
     // Store in DynamoDB
-    db_client.put_url(&url_item).await?;
+    app_state.db_client.put_url(&url_item).await?;
 
-    Ok(create_success_response(url_item))
+    Ok(create_success_response(url_item, &app_state.app_config))
 }
 
 fn generate_short_code() -> String {
@@ -143,9 +174,8 @@ fn generate_short_code() -> String {
     id
 }
 
-fn create_success_response(url_item: UrlItem) -> Value {
-    let base_url = env::var("SHORT_URL_BASE")
-        .unwrap_or_else(|_| "https://sqrl.co".to_string());
+fn create_success_response(url_item: UrlItem, app_config: &AppConfig) -> Value {
+    let base_url = &app_config.short_url_base;
     let short_url = format!("{}/{}", base_url, url_item.short_code);
     let expires_at = url_item.expires_at.map(|ts| {
         DateTime::from_timestamp(ts, 0)

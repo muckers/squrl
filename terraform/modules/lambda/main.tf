@@ -8,10 +8,14 @@ resource "aws_lambda_function" "function" {
   memory_size = var.memory_size
   timeout     = var.timeout
   
+  # KMS key for environment variable encryption
+  kms_key_arn = var.kms_key_arn
+  
   environment {
     variables = merge({
       DYNAMODB_TABLE_NAME = var.dynamodb_table_name
       RUST_LOG           = var.rust_log_level
+      ENVIRONMENT        = var.environment
     }, var.additional_env_vars)
   }
   
@@ -116,3 +120,62 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${var.function_name}"
   retention_in_days = var.log_retention_days
 }
+
+# KMS permissions for Lambda if KMS key is provided
+resource "aws_iam_role_policy" "lambda_kms_access" {
+  count = var.kms_key_arn != null ? 1 : 0
+  name  = "${var.function_name}_kms"
+  role  = aws_iam_role.lambda_exec.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:DescribeKey"
+        ]
+        Resource = var.kms_key_arn
+      }
+    ]
+  })
+}
+
+# Secrets Manager permissions for Lambda
+resource "aws_iam_role_policy" "secrets_manager_access" {
+  count = length(var.secrets_manager_arns) > 0 ? 1 : 0
+  name  = "${var.function_name}_secrets_manager"
+  role  = aws_iam_role.lambda_exec.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = var.secrets_manager_arns
+      },
+      # KMS permissions for Secrets Manager if KMS key is used
+      var.kms_key_arn != null ? {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = var.kms_key_arn
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+          }
+        }
+      } : null
+    ]
+  })
+}
+
+# Data source for current AWS region
+data "aws_region" "current" {}

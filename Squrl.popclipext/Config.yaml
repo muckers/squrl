@@ -1,0 +1,37 @@
+# PopClip extension for squrl URL shortener
+name: Squrl
+icon: text:SQ
+requirements:
+  - url
+actions:
+  - title: Shorten URL
+    icon: text:SQ
+    requirements:
+      - url
+    interpreter: /bin/bash
+    shell script: |
+      # The selected URL is in POPCLIP_TEXT
+      URL="$POPCLIP_TEXT"
+      
+      # Build JSON payload
+      PAYLOAD=$(printf '{"original_url":"%s"}' "$URL")
+      
+      # Make API request
+      RESPONSE=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD" \
+        "https://squrl.pub/create")
+      
+      # Extract short_url from response
+      SHORT_URL=$(echo "$RESPONSE" | sed -n 's/.*"short_url":"\([^"]*\)".*/\1/p')
+      
+      # Copy to clipboard
+      echo -n "$SHORT_URL" | pbcopy
+      
+      # Exit successfully if we got a URL
+      if [ -n "$SHORT_URL" ]; then
+        exit 0
+      else
+        exit 1
+      fi
+

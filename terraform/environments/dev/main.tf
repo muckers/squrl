@@ -19,12 +19,82 @@ provider "aws" {
   region = var.aws_region
 }
 
+# KMS module for encryption
+module "kms" {
+  source = "../../modules/kms"
+
+  environment = var.environment
+  
+  # Enable keys for required services
+  enable_dynamodb_key        = true
+  enable_s3_key             = false  # Cost optimization for dev
+  enable_lambda_key         = false  # Cost optimization for dev
+  enable_secrets_manager_key = var.enable_secrets_manager
+  enable_parameter_store_key = var.enable_parameter_store
+  enable_kinesis_key        = true   # Required for analytics
+  enable_logs_key           = false  # Use monitoring module's KMS key
+
+  # Key configuration for dev
+  enable_key_rotation = false  # Disable rotation for dev to save costs
+  key_deletion_window = 7      # Shorter window for dev
+
+  tags = local.common_tags
+}
+
+# Secrets Manager module for API keys and secrets
+module "secrets_manager" {
+  source = "../../modules/secrets-manager"
+  
+  count = var.enable_secrets_manager ? 1 : 0
+
+  environment = var.environment
+  kms_key_arn = module.kms.secrets_manager_key_arn
+
+  # Development secrets configuration (minimal for cost savings)
+  secrets = var.application_secrets
+
+  # Cost optimization for dev
+  enable_automatic_rotation = false
+  create_rotation_lambda    = false
+
+  tags = local.common_tags
+}
+
+# Parameter Store module for configuration
+module "parameter_store" {
+  source = "../../modules/parameter-store"
+  
+  count = var.enable_parameter_store ? 1 : 0
+
+  environment = var.environment
+  app_name    = "squrl"
+  
+  # Use KMS key for SecureString parameters if available
+  default_kms_key_id = module.kms.parameter_store_key_id
+
+  # Development parameter configuration
+  parameters = var.application_parameters
+  
+  # Feature flags for development
+  feature_flags = var.feature_flags
+
+  # Development-specific settings
+  create_parameter_group     = false  # Cost optimization
+  create_write_policy        = true   # Allow updates in dev
+  enable_parameter_logging   = false  # Cost optimization
+  parameter_log_retention    = 7      # Shorter retention
+
+  tags = local.common_tags
+}
+
 # Keep existing resources
 module "dynamodb" {
   source = "../../modules/dynamodb"
 
   table_name  = "squrl-urls-${var.environment}"
   environment = var.environment
+  kms_key_id  = module.kms.dynamodb_key_arn  # Use customer-managed KMS key
+  tags        = local.common_tags
 }
 
 module "create_url_lambda" {
@@ -37,10 +107,22 @@ module "create_url_lambda" {
   memory_size         = 256
   timeout             = 10
   rust_log_level      = "info"
+  environment         = var.environment
 
-  additional_env_vars = {
+  # KMS key for environment variable encryption (if available)
+  kms_key_arn = module.kms.lambda_key_arn
+
+  additional_env_vars = merge({
     SHORT_URL_BASE = "https://staging.squrl.pub"
-  }
+  }, 
+  var.enable_parameter_store && length(module.parameter_store) > 0 ? module.parameter_store[0].lambda_environment_variables : {},
+  var.enable_secrets_manager && length(module.secrets_manager) > 0 ? {
+    SECRETS_MANAGER_REGION = var.aws_region
+  } : {}
+  )
+
+  # Pass Secrets Manager ARNs for access (supported by lambda module)
+  secrets_manager_arns = var.enable_secrets_manager && length(module.secrets_manager) > 0 ? values(module.secrets_manager[0].secret_arns) : []
 
   tags = local.common_tags
 }
@@ -56,10 +138,22 @@ module "redirect_lambda" {
   memory_size         = 128
   timeout             = 5
   rust_log_level      = "info"
+  environment         = var.environment
 
-  additional_env_vars = {
+  # KMS key for environment variable encryption (if available)
+  kms_key_arn = module.kms.lambda_key_arn
+
+  additional_env_vars = merge({
     KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
-  }
+  }, 
+  var.enable_parameter_store && length(module.parameter_store) > 0 ? module.parameter_store[0].lambda_environment_variables : {},
+  var.enable_secrets_manager && length(module.secrets_manager) > 0 ? {
+    SECRETS_MANAGER_REGION = var.aws_region
+  } : {}
+  )
+
+  # Pass Secrets Manager ARNs for access (supported by lambda module)
+  secrets_manager_arns = var.enable_secrets_manager && length(module.secrets_manager) > 0 ? values(module.secrets_manager[0].secret_arns) : []
 
   tags = local.common_tags
 }
@@ -76,6 +170,20 @@ module "analytics_lambda" {
   memory_size              = 512
   timeout                  = 30
   rust_log_level           = "info"
+  environment              = var.environment
+
+  # KMS key for environment variable encryption (if available)
+  kms_key_arn = module.kms.lambda_key_arn
+
+  additional_env_vars = merge({},
+  var.enable_parameter_store && length(module.parameter_store) > 0 ? module.parameter_store[0].lambda_environment_variables : {},
+  var.enable_secrets_manager && length(module.secrets_manager) > 0 ? {
+    SECRETS_MANAGER_REGION = var.aws_region
+  } : {}
+  )
+
+  # Pass Secrets Manager ARNs for access (supported by lambda module)
+  secrets_manager_arns = var.enable_secrets_manager && length(module.secrets_manager) > 0 ? values(module.secrets_manager[0].secret_arns) : []
 
   tags = local.common_tags
 }
@@ -86,7 +194,7 @@ resource "aws_kinesis_stream" "analytics" {
   retention_period = 24
 
   encryption_type = "KMS"
-  kms_key_id      = "alias/aws/kinesis"
+  kms_key_id      = module.kms.kinesis_key_id  # Use customer-managed KMS key
 
   tags = local.common_tags
 }
@@ -95,6 +203,37 @@ resource "aws_lambda_event_source_mapping" "analytics_kinesis" {
   event_source_arn  = aws_kinesis_stream.analytics.arn
   function_name     = module.analytics_lambda.function_name
   starting_position = "LATEST"
+}
+
+# API Gateway WAF module for security
+module "api_gateway_waf" {
+  source = "../../modules/api-gateway-waf"
+  
+  count = var.enable_api_gateway_waf ? 1 : 0
+
+  environment = var.environment
+  
+  # API Gateway stage ARN will be provided after API Gateway is created
+  api_gateway_stage_arn = aws_api_gateway_stage.main.arn
+  
+  # Development-friendly WAF settings (more permissive)
+  enable_waf                               = true
+  rate_limit_requests_per_5min             = var.waf_rate_limit_requests_per_5min
+  create_rate_limit_requests_per_5min      = var.waf_create_rate_limit_requests_per_5min
+  scanner_detection_404_threshold          = 50   # More lenient for dev
+  max_request_body_size_kb                 = 64   # Standard size
+  max_uri_length                           = 2048 # Standard length
+  
+  # Disable expensive features for dev
+  enable_geo_restrictions = false
+  enable_bot_control     = false
+  enable_waf_logging     = false  # Cost optimization
+  
+  # Alarm configuration
+  enable_cloudwatch_alarms = var.enable_monitoring_alarms
+  alarm_sns_topic_arn      = var.enable_monitoring_alarms ? module.monitoring.alerts_sns_topic_arn : null
+
+  tags = local.common_tags
 }
 
 # Simple API Gateway setup
@@ -352,6 +491,33 @@ resource "aws_api_gateway_stage" "main" {
   rest_api_id   = aws_api_gateway_rest_api.squrl.id
   stage_name    = "v1"
 
+  # Enable logging and tracing for development monitoring
+  xray_tracing_enabled = false  # Disable X-Ray in dev to save costs
+  
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway_access_logs.arn
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      ip             = "$context.identity.sourceIp"
+      caller         = "$context.identity.caller"
+      user           = "$context.identity.user"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      resourcePath   = "$context.resourcePath"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
+      responseLength = "$context.responseLength"
+    })
+  }
+
+  tags = local.common_tags
+}
+
+# CloudWatch log group for API Gateway access logs
+resource "aws_cloudwatch_log_group" "api_gateway_access_logs" {
+  name              = "/aws/apigateway/${aws_api_gateway_rest_api.squrl.name}"
+  retention_in_days = 7  # Short retention for dev
+  
   tags = local.common_tags
 }
 
@@ -393,6 +559,39 @@ module "cloudfront" {
   tags = local.common_tags
 }
 
+# VPC Endpoints module (optional for dev, cost-conscious)
+module "vpc_endpoints" {
+  source = "../../modules/vpc-endpoints"
+  
+  count = var.enable_vpc_endpoints ? 1 : 0
+
+  environment = var.environment
+  
+  # VPC configuration - create minimal VPC for dev
+  create_vpc = true
+  vpc_cidr   = "10.0.0.0/16"
+  
+  # Subnet configuration - single AZ for cost optimization
+  availability_zones     = ["${var.aws_region}a"]
+  private_subnet_cidrs   = ["10.0.1.0/24"]
+  public_subnet_cidrs    = ["10.0.101.0/24"]
+  
+  # NAT Gateway for internet access (required for Lambda in VPC)
+  create_nat_gateway = true
+  
+  # Enable only essential endpoints for dev to minimize costs
+  enable_dynamodb_endpoint        = true   # Gateway endpoint - free
+  enable_s3_endpoint             = true   # Gateway endpoint - free
+  enable_secrets_manager_endpoint = var.enable_secrets_manager && var.enable_vpc_endpoints_full
+  enable_parameter_store_endpoint = var.enable_parameter_store && var.enable_vpc_endpoints_full
+  enable_kms_endpoint            = var.enable_vpc_endpoints_full
+  enable_kinesis_endpoint        = var.enable_vpc_endpoints_full
+  enable_lambda_endpoint         = false  # Not needed in dev
+  enable_logs_endpoint           = false  # Cost optimization for dev
+
+  tags = local.common_tags
+}
+
 # Monitoring module for dashboards and alarms
 module "monitoring" {
   source = "../../modules/monitoring"
@@ -417,16 +616,16 @@ module "monitoring" {
   kinesis_stream_name = aws_kinesis_stream.analytics.name
   
   # Alarm configuration for dev environment
-  enable_alarms            = true
-  alarm_email_endpoints    = [var.admin_email]
+  enable_alarms            = var.enable_monitoring_alarms
+  alarm_email_endpoints    = var.enable_monitoring_alarms ? [var.admin_email] : []
   
   # Cost thresholds appropriate for dev
-  monthly_cost_threshold_dev  = 50
+  monthly_cost_threshold_dev  = var.monthly_cost_threshold_dev
   monthly_cost_threshold_prod = 500
   
   # Performance thresholds for dev (more lenient)
-  error_rate_threshold           = 5   # 5% error rate threshold for dev
-  latency_p99_threshold_ms       = 200 # 200ms P99 latency threshold
+  error_rate_threshold           = var.error_rate_threshold
+  latency_p99_threshold_ms       = var.latency_p99_threshold_ms
   lambda_throttle_threshold      = 5   # 5 throttle events threshold
   dynamodb_throttle_threshold    = 1   # 1 throttle event threshold
   
@@ -436,13 +635,13 @@ module "monitoring" {
   abuse_urls_per_ip_threshold        = 100   # 100 URLs per IP per hour
   
   # Dashboard configuration (simplified for dev)
-  enable_dashboards     = true
+  enable_dashboards     = var.enable_monitoring_dashboards
   enable_xray_tracing   = false  # Disable X-Ray for dev to reduce costs
   enable_custom_metrics = false  # Disable complex custom metrics for dev
   enable_cost_anomaly_detection = false  # Disable for now
   
   # Log retention for dev (shorter retention to save costs)
-  log_retention_days = 7
+  log_retention_days = var.log_retention_days
 
   tags = local.common_tags
 }

@@ -29,9 +29,15 @@ variable "enable_versioning" {
 }
 
 variable "enable_encryption" {
-  description = "Enable server-side encryption with AWS managed keys"
+  description = "Enable server-side encryption"
   type        = bool
   default     = true
+}
+
+variable "kms_key_id" {
+  description = "KMS key ID for S3 bucket encryption (if not provided, uses AWS managed keys)"
+  type        = string
+  default     = null
 }
 
 variable "index_document" {

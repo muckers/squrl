@@ -65,3 +65,21 @@ variable "kinesis_read_permissions" {
   type        = bool
   default     = false
 }
+
+variable "kms_key_arn" {
+  description = "KMS key ARN for Lambda environment variable encryption (optional)"
+  type        = string
+  default     = null
+}
+
+variable "secrets_manager_arns" {
+  description = "List of Secrets Manager secret ARNs that the Lambda function needs to access"
+  type        = list(string)
+  default     = []
+}
+
+variable "environment" {
+  description = "Environment name (dev, prod, etc.)"
+  type        = string
+  default     = "dev"
+}

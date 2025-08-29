@@ -20,6 +20,9 @@ pub enum UrlShortenerError {
     #[error("Validation error: {0}")]
     ValidationError(String),
     
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
+    
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
     
@@ -38,6 +41,7 @@ impl UrlShortenerError {
             UrlShortenerError::ShortCodeNotFound(_) => 404,
             UrlShortenerError::UrlExpired => 410,
             UrlShortenerError::ValidationError(_) => 400,
+            UrlShortenerError::ConfigurationError(_) => 500,
             UrlShortenerError::RateLimitExceeded => 429,
             UrlShortenerError::SerializationError(_) => 500,
             _ => 500,
@@ -51,6 +55,7 @@ impl UrlShortenerError {
             UrlShortenerError::ShortCodeNotFound(_) => "NotFound",
             UrlShortenerError::UrlExpired => "Gone",
             UrlShortenerError::ValidationError(_) => "ValidationError",
+            UrlShortenerError::ConfigurationError(_) => "ConfigurationError",
             UrlShortenerError::RateLimitExceeded => "RateLimitExceeded",
             UrlShortenerError::SerializationError(_) => "SerializationError",
             _ => "InternalServerError",

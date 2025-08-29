@@ -1,6 +1,7 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use aws_sdk_kinesis::Client as KinesisClient;
+use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use chrono::Utc;
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
 //use lambda_web::{is_running_on_lambda, launch, IntoResponse, RequestExt};
@@ -14,12 +15,13 @@ use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
 use squrl_shared::models::{AnalyticsEvent, ErrorResponse, RedirectRequest, RedirectResponse,
                            ApiGatewayProxyEvent, ApiGatewayProxyResponse, is_api_gateway_event};
+use squrl_shared::secrets::{SecretsManagerConfig, AppConfig};
 
 #[derive(Clone)]
 struct AppState {
     db_client: UrlDynamoDbClient,
     kinesis_client: KinesisClient,
-    kinesis_stream_name: String,
+    app_config: AppConfig,
 }
 
 fn init_tracing() {
@@ -37,6 +39,7 @@ async fn main() -> Result<(), Error> {
     
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
     
+    // Initialize AWS clients
     let dynamodb_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
         // Local development with LocalStack
         let dynamodb_config = aws_sdk_dynamodb::config::Builder::from(&config)
@@ -50,23 +53,42 @@ async fn main() -> Result<(), Error> {
     let kinesis_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
         // Local development with LocalStack
         let kinesis_config = aws_sdk_kinesis::config::Builder::from(&config)
-            .endpoint_url(endpoint_url)
+            .endpoint_url(endpoint_url.clone())
             .build();
         KinesisClient::from_conf(kinesis_config)
     } else {
         KinesisClient::new(&config)
     };
+
+    let secrets_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
+        // Local development with LocalStack
+        let secrets_config = aws_sdk_secretsmanager::config::Builder::from(&config)
+            .endpoint_url(endpoint_url)
+            .build();
+        Some(SecretsManagerConfig::new(SecretsManagerClient::from_conf(secrets_config)))
+    } else {
+        Some(SecretsManagerConfig::new(SecretsManagerClient::new(&config)))
+    };
+
+    // Load application configuration from Secrets Manager with fallback to env vars
+    info!("Loading application configuration...");
+    let app_config = AppConfig::load_auto(secrets_client.as_ref()).await
+        .map_err(|e| {
+            error!("Failed to load application configuration: {}", e);
+            format!("Configuration error: {}", e)
+        })?;
+
+    info!(
+        table_name = %app_config.dynamodb_table_name,
+        kinesis_stream = ?app_config.kinesis_stream_name,
+        "Application configuration loaded successfully"
+    );
     
-    let table_name = env::var("DYNAMODB_TABLE_NAME")
-        .unwrap_or_else(|_| "squrl-urls".to_string());
-    let kinesis_stream_name = env::var("KINESIS_STREAM_NAME")
-        .unwrap_or_else(|_| "squrl-analytics".to_string());
-    
-    let db_client = UrlDynamoDbClient::new(dynamodb_client, table_name);
+    let db_client = UrlDynamoDbClient::new(dynamodb_client, app_config.dynamodb_table_name.clone());
     let app_state = AppState {
         db_client,
         kinesis_client,
-        kinesis_stream_name,
+        app_config,
     };
     
     run(service_fn(move |event| function_handler(event, app_state.clone()))).await
@@ -188,10 +210,14 @@ async fn send_analytics_event(
     let event_data = serde_json::to_string(event)
         .map_err(|e| UrlShortenerError::InternalError(e.into()))?;
 
+    let kinesis_stream_name = app_state.app_config.kinesis_stream_name
+        .as_ref()
+        .ok_or_else(|| UrlShortenerError::ConfigurationError("Kinesis stream not configured".to_string()))?;
+
     app_state
         .kinesis_client
         .put_record()
-        .stream_name(&app_state.kinesis_stream_name)
+        .stream_name(kinesis_stream_name)
         .partition_key(&event.short_code)
         .data(event_data.into_bytes().into())
         .send()

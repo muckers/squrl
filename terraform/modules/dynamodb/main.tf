@@ -30,12 +30,13 @@ resource "aws_dynamodb_table" "urls" {
   }
   
   server_side_encryption {
-    enabled = true
+    enabled     = true
+    kms_key_arn = var.kms_key_id
   }
   
-  tags = {
+  tags = merge({
     Environment = var.environment
     Service     = "squrl"
     ManagedBy   = "terraform"
-  }
+  }, var.tags)
 }
