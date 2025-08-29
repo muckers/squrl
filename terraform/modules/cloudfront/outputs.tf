@@ -66,7 +66,7 @@ output "origin_request_policy_ids" {
 
 output "response_headers_policy_id" {
   description = "Response headers policy ID"
-  value = aws_cloudfront_response_headers_policy.security_headers.id
+  value       = aws_cloudfront_response_headers_policy.security_headers.id
 }
 
 # Logging outputs
@@ -90,7 +90,7 @@ output "cloudwatch_alarm_names" {
   description = "Map of CloudWatch alarm names"
   value = var.enable_waf ? {
     blocked_requests = aws_cloudwatch_metric_alarm.waf_blocked_requests[0].alarm_name
-    rate_limit      = aws_cloudwatch_metric_alarm.waf_rate_limit_triggered[0].alarm_name
+    rate_limit       = aws_cloudwatch_metric_alarm.waf_rate_limit_triggered[0].alarm_name
   } : {}
 }
 
@@ -109,16 +109,16 @@ output "custom_domain_url" {
 output "configuration_summary" {
   description = "Summary of key configuration settings"
   value = {
-    environment                  = var.environment
+    environment                 = var.environment
     waf_enabled                 = var.enable_waf
     rate_limit_per_5min         = var.rate_limit_requests_per_5min
     create_rate_limit_per_5min  = var.create_rate_limit_requests_per_5min
     scanner_detection_threshold = var.scanner_detection_404_threshold
     geo_restrictions_enabled    = var.enable_geo_restrictions
-    logging_enabled            = var.enable_waf_logging
-    compression_enabled        = var.enable_compression
-    http2_enabled              = var.http2_enabled
-    ipv6_enabled               = var.ipv6_enabled
-    price_class                = var.price_class
+    logging_enabled             = var.enable_waf_logging
+    compression_enabled         = var.enable_compression
+    http2_enabled               = var.http2_enabled
+    ipv6_enabled                = var.ipv6_enabled
+    price_class                 = var.price_class
   }
 }

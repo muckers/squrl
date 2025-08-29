@@ -26,7 +26,7 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
         "ETag",
         "Server",
         "X-RateLimit-Limit",
-        "X-RateLimit-Remaining", 
+        "X-RateLimit-Remaining",
         "X-RateLimit-Reset"
       ]
     }

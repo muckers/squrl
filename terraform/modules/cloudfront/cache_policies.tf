@@ -19,7 +19,7 @@ resource "aws_cloudfront_cache_policy" "api_default" {
       headers {
         items = [
           "Accept",
-          "Accept-Language", 
+          "Accept-Language",
           "Authorization",
           "Content-Type",
           "User-Agent",
@@ -130,7 +130,7 @@ resource "aws_cloudfront_cache_policy" "stats" {
 resource "aws_cloudfront_cache_policy" "static_content" {
   name        = "squrl-static-content-${var.environment}"
   comment     = "Cache policy for static content - optimized for long caching"
-  default_ttl = 86400  # 1 day
+  default_ttl = 86400    # 1 day
   max_ttl     = 31536000 # 1 year
   min_ttl     = 0
 

@@ -1,30 +1,30 @@
 resource "aws_lambda_function" "function" {
-  filename         = var.lambda_zip_path
-  function_name    = var.function_name
-  role            = aws_iam_role.lambda_exec.arn
-  handler         = "bootstrap"
-  runtime         = "provided.al2"
-  
+  filename      = var.lambda_zip_path
+  function_name = var.function_name
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = "bootstrap"
+  runtime       = "provided.al2"
+
   memory_size = var.memory_size
   timeout     = var.timeout
-  
+
   environment {
     variables = merge({
       DYNAMODB_TABLE_NAME = var.dynamodb_table_name
-      RUST_LOG           = var.rust_log_level
+      RUST_LOG            = var.rust_log_level
     }, var.additional_env_vars)
   }
-  
+
   tracing_config {
     mode = "Active"
   }
-  
+
   tags = var.tags
 }
 
 resource "aws_iam_role" "lambda_exec" {
   name = "${var.function_name}_role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -47,7 +47,7 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
 resource "aws_iam_role_policy" "dynamodb_access" {
   name = "${var.function_name}_dynamodb"
   role = aws_iam_role.lambda_exec.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -72,7 +72,7 @@ resource "aws_iam_role_policy" "kinesis_access" {
   count = var.kinesis_stream_arn != "" ? 1 : 0
   name  = "${var.function_name}_kinesis"
   role  = aws_iam_role.lambda_exec.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -92,7 +92,7 @@ resource "aws_iam_role_policy" "kinesis_read_access" {
   count = var.kinesis_read_permissions && var.kinesis_stream_arn != "" ? 1 : 0
   name  = "${var.function_name}_kinesis_read"
   role  = aws_iam_role.lambda_exec.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

@@ -42,7 +42,7 @@ resource "aws_cloudfront_origin_request_policy" "redirect" {
     headers {
       items = [
         "CloudFront-Viewer-Country",
-        "CloudFront-Is-Mobile-Viewer", 
+        "CloudFront-Is-Mobile-Viewer",
         "CloudFront-Is-Tablet-Viewer",
         "Referer",
         "User-Agent",

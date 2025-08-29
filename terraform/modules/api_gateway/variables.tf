@@ -55,9 +55,13 @@ variable "enable_access_logs" {
 }
 
 variable "log_retention_days" {
-  description = "CloudWatch logs retention in days"
+  description = "CloudWatch logs retention in days - minimal retention for privacy compliance"
   type        = number
-  default     = 14
+  default     = 3
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.log_retention_days)
+    error_message = "Log retention days must be a valid CloudWatch log retention value."
+  }
 }
 
 variable "throttle_burst_limit" {

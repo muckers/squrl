@@ -98,7 +98,7 @@ resource "aws_api_gateway_method_settings" "all" {
     # Caching settings (disabled by default, can be enabled later)
     caching_enabled      = false
     cache_ttl_in_seconds = 0
-# cache_key_parameters not supported in method_settings
+    # cache_key_parameters not supported in method_settings
   }
 }
 
@@ -139,7 +139,7 @@ resource "aws_api_gateway_method_settings" "redirect" {
     # Enable short caching for redirect operations
     caching_enabled      = var.environment == "prod"
     cache_ttl_in_seconds = var.environment == "prod" ? 300 : 0 # 5 minutes
-# cache_key_parameters not supported in method_settings
+    # cache_key_parameters not supported in method_settings
   }
 }
 
@@ -160,6 +160,6 @@ resource "aws_api_gateway_method_settings" "stats" {
     # Enable moderate caching for stats
     caching_enabled      = var.environment == "prod"
     cache_ttl_in_seconds = var.environment == "prod" ? 60 : 0 # 1 minute
-# cache_key_parameters not supported in method_settings
+    # cache_key_parameters not supported in method_settings
   }
 }
