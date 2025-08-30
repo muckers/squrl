@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>SQURL Shortener</title>
+    <title>sqURL</title>
     <style>
         * {
             margin: 0;
@@ -55,8 +55,9 @@
         }
 
         .title {
-            font-size: 24px;
+            font-size: 32px;
             font-weight: 600;
+            font-variant: small-caps;
             color: #1a1a1a;
             margin-bottom: 8px;
             letter-spacing: -0.01em;
@@ -419,13 +420,13 @@
             margin: 0;
             letter-spacing: 0.025em;
         }
-        
+
         .footer a {
             color: #6b7280;
             text-decoration: none;
             transition: color 0.2s ease;
         }
-        
+
         .footer a:hover {
             color: #374151;
             text-decoration: underline;
@@ -457,7 +458,8 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">sqURL Shortener</h1>
+            <h1 class="title">sqURL</h1>
+            <p class="subtitle"><i style="color:#777777;">(v. squeeze URL)</i></p>
             <p class="subtitle">Create short, shareable links</p>
         </header>
 
@@ -569,7 +571,7 @@
                 if (response.status === 403) {
                     throw new Error('Rate limit exceeded. Please wait a few minutes and try again.');
                 }
-                
+
                 // Check for too many requests (alternative rate limiting)
                 if (response.status === 429) {
                     throw new Error('Too many requests. Please wait a moment and try again.');
@@ -610,7 +612,7 @@
                     // Rate limit errors are already well-formatted
                     errorMsg = error.message;
                 } else if (error.message.includes('Too many requests')) {
-                    // Too many requests errors are already well-formatted  
+                    // Too many requests errors are already well-formatted
                     errorMsg = error.message;
                 } else if (error.message) {
                     errorMsg = error.message;
@@ -665,8 +667,8 @@
             if (isMobile) {
                 // Use a slight delay for mobile to ensure smooth scrolling
                 setTimeout(() => {
-                    resultContainer.scrollIntoView({ 
-                        behavior: 'smooth', 
+                    resultContainer.scrollIntoView({
+                        behavior: 'smooth',
                         block: 'center',
                         inline: 'nearest'
                     });
@@ -906,11 +908,11 @@
             urlInput.focus();
         });
     </script>
-    
+
     <footer class="footer">
         <p id="copyright">© 2025 <a href="https://www.linkedin.com/in/ronforresterpdx/" target="_blank" rel="noopener noreferrer">Ron Forrester</a>. All rights reserved.</p>
     </footer>
-    
+
     <script>
         // Update copyright year dynamically
         const currentYear = new Date().getFullYear();
