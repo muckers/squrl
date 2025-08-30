@@ -272,9 +272,16 @@ test-load-type TYPE ENV="dev":
                 npm run test:waf
             fi
             ;;
+        "waf-oha")
+            echo "WARNING: WAF test with oha may temporarily block your IP address"
+            read -p "Continue? (y/N): " -r
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                just test-waf-oha {{ENV}}
+            fi
+            ;;
         *)
             echo "❌ Invalid test type: {{TYPE}}"
-            echo "Available types: standard, burst, mixed, waf"
+            echo "Available types: standard, burst, mixed, waf, waf-oha"
             exit 1
             ;;
     esac
@@ -297,6 +304,131 @@ test-load-report:
     
     echo "Using report file: $REPORT_FILE"
     artillery report "$REPORT_FILE"
+
+# WAF rate limiting test with oha (Rust-based, faster than Artillery)
+# Usage: just test-waf-oha prod  (for production squrl.pub)
+#        just test-waf-oha staging (for staging.squrl.pub)
+test-waf-oha ENV="staging":
+    #!/bin/bash
+    set -euo pipefail
+    echo "🛡️  Testing WAF rate limiting with oha (Rust load testing tool)"
+    echo "WARNING: This test will trigger WAF rate limiting and may temporarily block your IP"
+    echo ""
+    
+    # Check if infrastructure is deployed by getting terraform outputs
+    API_BASE_URL=""
+    CLOUDFRONT_URL=""
+    
+    echo "🔍 Checking for deployed infrastructure..."
+    
+    # Try to get actual deployed URLs from terraform output
+    if terraform state list >/dev/null 2>&1; then
+        API_BASE_URL=$(terraform output -raw api_gateway_url 2>/dev/null | grep -v "Warning:" | head -1 || echo "")
+        CLOUDFRONT_URL=$(terraform output -raw cloudfront_url 2>/dev/null | grep -v "Warning:" | head -1 || echo "")
+        if [ -n "$API_BASE_URL" ] && [ -n "$CLOUDFRONT_URL" ]; then
+            echo "✅ Found deployed infrastructure with endpoints"
+        else
+            echo "⚠️  Terraform state exists but no output endpoints found - using defaults"
+        fi
+    else
+        echo "⚠️  No terraform state found - using default URLs for {{ENV}} environment"
+    fi
+    
+    # Fallback to actual deployed URLs if terraform outputs not available
+    if [ -z "$API_BASE_URL" ]; then
+        case "{{ENV}}" in
+            "dev"|"staging")
+                API_BASE_URL="https://staging.squrl.pub"
+                CLOUDFRONT_URL="https://staging.squrl.pub"
+                ;;
+            "prod"|"production")
+                echo ""
+                echo "⚠️  WAF testing against PRODUCTION will test actual rate limits"
+                echo "   This will hit the live squrl.pub service and may trigger blocking"
+                echo "   Make sure you have monitoring ready (CloudWatch, etc.)"
+                echo ""
+                read -p "Are you sure you want to test WAF against PRODUCTION squrl.pub? (type 'YES'): " -r
+                if [[ $REPLY != "YES" ]]; then
+                    echo "WAF test cancelled"
+                    exit 0
+                fi
+                API_BASE_URL="https://squrl.pub"
+                CLOUDFRONT_URL="https://squrl.pub"
+                ;;
+            *)
+                echo "❌ Invalid environment: {{ENV}}"
+                echo "Available environments: dev, staging, prod"
+                exit 1
+                ;;
+        esac
+    fi
+    
+    echo "Testing environment: {{ENV}}"
+    echo "API Base URL: $API_BASE_URL"
+    echo "CloudFront URL: $CLOUDFRONT_URL"
+    echo ""
+    
+    # Test connectivity first  
+    echo "🔍 Testing connectivity to API endpoint..."
+    # Test with a simple GET request to root path instead of HEAD to /create
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_BASE_URL" 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "403" ]; then
+        echo "✅ API endpoint is accessible (HTTP $HTTP_CODE)"
+    else
+        echo "❌ Cannot connect to $API_BASE_URL (HTTP $HTTP_CODE)"
+        echo "   This might mean:"
+        echo "   - Infrastructure is not deployed"
+        echo "   - Domain DNS is not configured" 
+        echo "   - API Gateway is not accessible"
+        echo ""
+        read -p "Continue with WAF test anyway? (y/N): " -r
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "WAF test cancelled"
+            exit 0
+        fi
+    fi
+    
+    echo ""
+    echo "🚀 Starting WAF rate limiting tests..."
+    echo ""
+    
+    # Test 1: Global WAF limit (1000 req/5min = ~3.3 req/sec sustained)
+    echo "1. Testing WAF global rate limit (1000 req/5min)..."
+    echo "   Sending sustained traffic at 4 req/sec for 5 minutes to trigger WAF..."
+    oha -z 300s -c 5 -q 4 --latency-correction \
+        -H "Content-Type: application/json" \
+        -H "User-Agent: WAF-Test-oha/1.0" \
+        -m POST \
+        -d '{"original_url":"https://example.com/waf-test-global"}' \
+        "$API_BASE_URL/create" || true
+    
+    echo ""
+    echo "2. Testing WAF burst protection..."
+    echo "   Sending 1200 requests rapidly to exceed 1000 req/5min limit..."
+    oha -n 1200 --burst-delay 1s --burst-rate 25 \
+        -H "Content-Type: application/json" \
+        -H "User-Agent: WAF-Test-oha/1.0" \
+        -m POST \
+        -d '{"original_url":"https://example.com/waf-test-burst"}' \
+        "$API_BASE_URL/create" || true
+    
+    echo ""
+    echo "3. Testing CREATE URL rate limit (500 req/5min)..."
+    echo "   Sending traffic specifically to /create endpoint..."
+    oha -z 180s -c 3 -q 3 --latency-correction \
+        -H "Content-Type: application/json" \
+        -H "User-Agent: WAF-Test-oha/1.0" \
+        -m POST \
+        -d '{"original_url":"https://example.com/waf-test-create"}' \
+        "$API_BASE_URL/create" || true
+    
+    echo ""
+    echo "✅ WAF rate limiting tests completed with oha"
+    echo ""
+    echo "💡 Tips:"
+    echo "   - Monitor CloudWatch WAF metrics during testing"
+    echo "   - Check WAF logs: aws logs tail /aws/wafv2/squrl-cloudfront-{{ENV}} --follow"
+    echo "   - Wait 5+ minutes for rate limit window to reset"
 
 # Install testing dependencies
 test-install-deps:

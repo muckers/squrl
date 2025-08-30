@@ -59,16 +59,17 @@ variable "enable_waf" {
 }
 
 # WAF Rate Limiting Configuration
+# These protective defaults prevent abuse while allowing normal usage
 variable "rate_limit_requests_per_5min" {
-  description = "Maximum requests allowed per IP per 5 minutes"
+  description = "Maximum requests allowed per IP per 5 minutes (global protection against general abuse)"
   type        = number
-  default     = 1000
+  default     = 1000  # ~3.3 req/sec average - protects against abuse while allowing normal browsing
 }
 
 variable "create_rate_limit_requests_per_5min" {
-  description = "Maximum create requests allowed per IP per 5 minutes"
+  description = "Maximum create requests allowed per IP per 5 minutes (strict protection for database writes)"
   type        = number
-  default     = 500
+  default     = 100   # ~0.33 req/sec average - much stricter for URL creation to prevent spam/DB abuse
 }
 
 variable "scanner_detection_404_threshold" {

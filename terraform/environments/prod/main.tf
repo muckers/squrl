@@ -387,9 +387,10 @@ module "cloudfront" {
   enable_waf_logging = false
   enable_waf         = true
 
-  # Production rate limits
-  rate_limit_requests_per_5min        = 50000
-  create_rate_limit_requests_per_5min = 5000
+  # Production protective rate limits to prevent abuse
+  # These limits balance security with legitimate usage patterns
+  rate_limit_requests_per_5min        = 1000  # ~3.3 req/sec average - prevents general abuse
+  create_rate_limit_requests_per_5min = 100   # ~0.33 req/sec average - strict protection for database writes
 
   tags = local.common_tags
 }

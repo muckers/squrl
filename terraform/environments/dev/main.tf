@@ -386,9 +386,10 @@ module "cloudfront" {
   # Temporarily disable WAF to test CloudFront configuration
   enable_waf = false
 
-  # More permissive rate limits for testing
-  rate_limit_requests_per_5min        = 10000
-  create_rate_limit_requests_per_5min = 1000
+  # Development rate limits - more permissive than production for testing
+  # Still protective but allows for higher testing loads
+  rate_limit_requests_per_5min        = 2000  # ~6.7 req/sec average - allows testing bursts
+  create_rate_limit_requests_per_5min = 300   # ~1 req/sec average - allows create testing but prevents abuse
 
   tags = local.common_tags
 }

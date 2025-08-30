@@ -565,7 +565,22 @@
                     })
                 });
 
-                const data = await response.json();
+                // Check for rate limiting (WAF returns 403)
+                if (response.status === 403) {
+                    throw new Error('Rate limit exceeded. Please wait a few minutes and try again.');
+                }
+                
+                // Check for too many requests (alternative rate limiting)
+                if (response.status === 429) {
+                    throw new Error('Too many requests. Please wait a moment and try again.');
+                }
+
+                // Only try to parse JSON if response is ok or has JSON content
+                let data = {};
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                }
 
                 if (!response.ok) {
                     throw new Error(data.error || `Request failed: ${response.status}`);
@@ -589,10 +604,14 @@
 
                 if (error.name === 'TypeError' && error.message.includes('fetch')) {
                     errorMsg = 'Network error. Please check your connection.';
-                } else if (error.message.includes('429')) {
-                    errorMsg = 'Too many requests. Please wait a moment.';
                 } else if (error.message.includes('400')) {
                     errorMsg = 'Invalid URL format. Please check your URL.';
+                } else if (error.message.includes('Rate limit')) {
+                    // Rate limit errors are already well-formatted
+                    errorMsg = error.message;
+                } else if (error.message.includes('Too many requests')) {
+                    // Too many requests errors are already well-formatted  
+                    errorMsg = error.message;
                 } else if (error.message) {
                     errorMsg = error.message;
                 }
