@@ -393,59 +393,8 @@ module "cloudfront" {
   tags = local.common_tags
 }
 
-# Monitoring module for dashboards and alarms
-module "monitoring" {
-  source = "../../modules/monitoring"
-
-  # Basic configuration
-  environment  = var.environment
-  service_name = "squrl"
-  aws_region   = var.aws_region
-
-  # Resource identification
-  api_gateway_name           = aws_api_gateway_rest_api.squrl.name
-  api_gateway_stage_name     = aws_api_gateway_stage.main.stage_name
-  cloudfront_distribution_id = module.cloudfront.distribution_id
-
-  lambda_function_names = {
-    create_url = module.create_url_lambda.function_name
-    redirect   = module.redirect_lambda.function_name
-    analytics  = module.analytics_lambda.function_name
-  }
-
-  dynamodb_table_name = module.dynamodb.table_name
-  kinesis_stream_name = aws_kinesis_stream.analytics.name
-
-  # Alarm configuration for dev environment
-  enable_alarms         = true
-  alarm_email_endpoints = [var.admin_email]
-
-  # Cost thresholds appropriate for dev
-  monthly_cost_threshold_dev  = 50
-  monthly_cost_threshold_prod = 500
-
-  # Performance thresholds for dev (more lenient)
-  error_rate_threshold        = 5   # 5% error rate threshold for dev
-  latency_p99_threshold_ms    = 200 # 200ms P99 latency threshold
-  lambda_throttle_threshold   = 5   # 5 throttle events threshold
-  dynamodb_throttle_threshold = 1   # 1 throttle event threshold
-
-  # Abuse detection settings (simplified for dev)
-  enable_abuse_detection          = false # Disable for now to fix deployment issues
-  abuse_requests_per_ip_threshold = 1000  # 1000 requests per IP threshold
-  abuse_urls_per_ip_threshold     = 100   # 100 URLs per IP per hour
-
-  # Dashboard configuration (simplified for dev)
-  enable_dashboards             = true
-  enable_xray_tracing           = false # Disable X-Ray for dev to reduce costs
-  enable_custom_metrics         = false # Disable complex custom metrics for dev
-  enable_cost_anomaly_detection = false # Disable for now
-
-  # Log retention for dev (shorter retention to save costs)
-  log_retention_days = 7
-
-  tags = local.common_tags
-}
+# Simplified monitoring is now in ../../monitoring.tf
+# Development environment uses minimal monitoring for cost efficiency
 
 locals {
   common_tags = {

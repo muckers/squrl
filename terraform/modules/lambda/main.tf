@@ -15,9 +15,7 @@ resource "aws_lambda_function" "function" {
     }, var.additional_env_vars)
   }
 
-  tracing_config {
-    mode = "Active"
-  }
+  # X-Ray tracing removed for monitoring simplification
 
   tags = var.tags
 }

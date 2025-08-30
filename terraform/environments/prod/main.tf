@@ -391,59 +391,8 @@ module "cloudfront" {
   tags = local.common_tags
 }
 
-# Monitoring module for dashboards and alarms
-module "monitoring" {
-  source = "../../modules/monitoring"
-
-  # Basic configuration
-  environment  = var.environment
-  service_name = "squrl"
-  aws_region   = var.aws_region
-
-  # Resource identification
-  api_gateway_name           = aws_api_gateway_rest_api.squrl.name
-  api_gateway_stage_name     = aws_api_gateway_stage.main.stage_name
-  cloudfront_distribution_id = module.cloudfront.distribution_id
-
-  lambda_function_names = {
-    create_url = module.create_url_lambda.function_name
-    redirect   = module.redirect_lambda.function_name
-    analytics  = module.analytics_lambda.function_name
-  }
-
-  dynamodb_table_name = module.dynamodb.table_name
-  kinesis_stream_name = aws_kinesis_stream.analytics.name
-
-  # Alarm configuration for production environment
-  enable_alarms         = true
-  alarm_email_endpoints = [var.admin_email]
-
-  # Cost thresholds for production
-  monthly_cost_threshold_dev  = 50
-  monthly_cost_threshold_prod = 500
-
-  # Performance thresholds for production (stricter)
-  error_rate_threshold        = 1   # 1% error rate threshold for prod
-  latency_p99_threshold_ms    = 100 # 100ms P99 latency threshold
-  lambda_throttle_threshold   = 5   # 5 throttle events threshold
-  dynamodb_throttle_threshold = 1   # 1 throttle event threshold
-
-  # Abuse detection settings (enabled for production)
-  enable_abuse_detection          = true
-  abuse_requests_per_ip_threshold = 1000 # 1000 requests per IP threshold
-  abuse_urls_per_ip_threshold     = 100  # 100 URLs per IP per hour
-
-  # Dashboard configuration (full monitoring for production)
-  enable_dashboards             = true
-  enable_xray_tracing           = true # Enable X-Ray for production
-  enable_custom_metrics         = true # Enable custom metrics for production
-  enable_cost_anomaly_detection = true # Enable cost anomaly detection
-
-  # Log retention for production
-  log_retention_days = 30
-
-  tags = local.common_tags
-}
+# Simplified monitoring is now in ../../monitoring.tf
+# Essential alarms and privacy-compliant logging only
 
 # Route53 configuration for squrl.pub domain
 data "aws_route53_zone" "main" {
