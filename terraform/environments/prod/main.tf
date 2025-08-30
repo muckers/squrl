@@ -37,6 +37,7 @@ module "create_url_lambda" {
   memory_size         = 256
   timeout             = 10
   rust_log_level      = "warn"
+  log_retention_days  = 3  # Privacy compliance: minimal retention
 
   additional_env_vars = {
     SHORT_URL_BASE = "https://squrl.pub"
@@ -56,6 +57,7 @@ module "redirect_lambda" {
   memory_size         = 128
   timeout             = 5
   rust_log_level      = "warn"
+  log_retention_days  = 3  # Privacy compliance: minimal retention
 
   additional_env_vars = {
     KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
@@ -76,6 +78,7 @@ module "analytics_lambda" {
   memory_size              = 512
   timeout                  = 30
   rust_log_level           = "warn"
+  log_retention_days       = 3  # Privacy compliance: minimal retention
 
   tags = local.common_tags
 }

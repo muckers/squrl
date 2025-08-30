@@ -116,36 +116,6 @@ resource "aws_cloudwatch_dashboard" "health" {
   })
 }
 
-# Simplified log groups with 3-day retention for privacy compliance
-resource "aws_cloudwatch_log_group" "lambda_create_url" {
-  name              = "/aws/lambda/squrl-create-url-${var.environment}"
-  retention_in_days = 3
-  
-  tags = {
-    Environment = var.environment
-    Service     = "squrl"
-    Privacy     = "compliant"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "lambda_redirect" {
-  name              = "/aws/lambda/squrl-redirect-${var.environment}"
-  retention_in_days = 3
-  
-  tags = {
-    Environment = var.environment
-    Service     = "squrl"
-    Privacy     = "compliant"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "lambda_analytics" {
-  name              = "/aws/lambda/squrl-analytics-${var.environment}"
-  retention_in_days = 3
-  
-  tags = {
-    Environment = var.environment
-    Service     = "squrl"
-    Privacy     = "compliant"
-  }
-}
+# Note: Log groups are already created by the Lambda module
+# We just need to ensure 3-day retention for privacy compliance
+# These are managed in terraform/modules/lambda/main.tf
