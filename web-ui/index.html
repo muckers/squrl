@@ -75,14 +75,47 @@
 
         .input-group {
             margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .protocol-select {
+            height: 48px;
+            padding: 0 12px;
+            padding-right: 8px;
+            border: 1px solid #e5e7eb;
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+            font-size: 15px;
+            color: #6b7280;
+            background: #f9fafb;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            min-width: 85px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            outline: none;
+        }
+
+        .protocol-select:hover {
+            background: #f3f4f6;
+        }
+
+        .protocol-select:focus {
+            border-color: #0066cc;
+            background: #ffffff;
+            color: #111827;
         }
 
         .url-input {
-            width: 100%;
+            flex: 1;
             height: 48px;
             padding: 0 16px;
             border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            border-radius: 0 8px 8px 0;
             font-size: 15px;
             transition: all 0.2s ease;
             background: #ffffff;
@@ -92,13 +125,27 @@
             touch-action: manipulation;
         }
 
-        .url-input:focus {
+        .input-group:focus-within .protocol-select {
             border-color: #0066cc;
-            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+            background: #ffffff;
+            color: #111827;
         }
 
-        .url-input.error {
+        .input-group:focus-within .url-input {
+            border-color: #0066cc;
+        }
+
+        .input-group:focus-within {
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+            border-radius: 8px;
+        }
+
+        .url-input.error,
+        .input-group.error .protocol-select {
             border-color: #dc2626;
+        }
+
+        .input-group.error {
             box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
         }
 
@@ -264,10 +311,9 @@
             justify-content: center;
         }
 
-        .copy-btn {
+        .copy-btn,
+        .reset-btn {
             padding: 12px 16px;
-            background: #0066cc;
-            color: #ffffff;
             border: none;
             border-radius: 6px;
             font-size: 14px;
@@ -280,11 +326,26 @@
             touch-action: manipulation;
         }
 
+        .copy-btn {
+            background: #0066cc;
+            color: #ffffff;
+        }
+
         .copy-btn:hover {
             background: #0052a3;
         }
 
-        .copy-btn:active {
+        .reset-btn {
+            background: #6b7280;
+            color: #ffffff;
+        }
+
+        .reset-btn:hover {
+            background: #4b5563;
+        }
+
+        .copy-btn:active,
+        .reset-btn:active {
             transform: translateY(1px);
         }
 
@@ -338,11 +399,16 @@
                 font-size: clamp(20px, 5.5vw, 22px);
             }
 
+            .protocol-select,
             .url-input,
             .submit-btn {
                 height: 52px;
                 font-size: 16px; /* Prevent zoom on iOS */
                 min-height: 44px;
+            }
+            
+            .protocol-select {
+                min-width: 90px;
             }
 
             .result-container {
@@ -365,10 +431,17 @@
                 font-size: 14px;
             }
 
+            .protocol-select,
             .url-input,
             .submit-btn {
                 font-size: 16px;
                 padding: 0 12px;
+            }
+            
+            .protocol-select {
+                font-size: 14px;
+                min-width: 75px;
+                padding: 0 8px;
             }
 
             .result-url {
@@ -381,15 +454,19 @@
                 gap: 8px;
             }
 
-            .copy-btn {
+            .copy-btn,
+            .reset-btn {
                 width: 100%;
                 min-width: unset;
             }
         }
 
         /* Focus visible for accessibility */
+        .protocol-select:focus-visible,
         .url-input:focus-visible,
-        .submit-btn:focus-visible {
+        .submit-btn:focus-visible,
+        .copy-btn:focus-visible,
+        .reset-btn:focus-visible {
             outline: 2px solid #0066cc;
             outline-offset: 2px;
         }
@@ -465,14 +542,18 @@
 
         <main>
             <form id="urlForm" class="form-container">
-                <div class="input-group">
+                <div class="input-group" id="inputGroup">
+                    <select id="protocolSelect" class="protocol-select">
+                        <option value="https://">https://</option>
+                        <option value="http://">http://</option>
+                    </select>
                     <input
-                        type="url"
+                        type="text"
                         id="urlInput"
                         class="url-input"
-                        placeholder="https://example.com/your-long-url"
+                        placeholder="example.com/your-long-url"
                         required
-                        autocomplete="url"
+                        autocomplete="off"
                         spellcheck="false"
                         inputmode="url"
                     >
@@ -494,6 +575,9 @@
                         <button id="copyBtn" class="copy-btn" onclick="copyToClipboard(document.getElementById('resultUrl').textContent)">
                             Copy URL
                         </button>
+                        <button id="resetBtn" class="reset-btn" onclick="resetForm()">
+                            Reset
+                        </button>
                     </div>
                 </div>
                 <div id="copyStatus" class="copy-status">Copied to clipboard</div>
@@ -505,6 +589,8 @@
         // DOM elements
         const form = document.getElementById('urlForm');
         const urlInput = document.getElementById('urlInput');
+        const protocolSelect = document.getElementById('protocolSelect');
+        const inputGroup = document.getElementById('inputGroup');
         const submitBtn = document.getElementById('submitBtn');
         const errorMessage = document.getElementById('errorMessage');
         const successMessage = document.getElementById('successMessage');
@@ -516,7 +602,7 @@
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            const url = urlInput.value.trim();
+            const url = getProcessedUrl();
 
             if (!validateUrl(url)) {
                 return;
@@ -529,7 +615,32 @@
         urlInput.addEventListener('input', function() {
             clearMessages();
             this.classList.remove('error');
+            inputGroup.classList.remove('error');
         });
+
+        // Get the processed URL with protocol
+        function getProcessedUrl() {
+            let url = urlInput.value.trim();
+            
+            if (!url) {
+                return '';
+            }
+
+            // Check if URL already has a protocol
+            const hasProtocol = /^https?:\/\//i.test(url);
+            
+            if (!hasProtocol) {
+                // If URL starts with //, it's protocol-relative, so prepend the selected protocol
+                if (url.startsWith('//')) {
+                    url = protocolSelect.value.replace('//', '') + url;
+                } else {
+                    // No protocol at all, prepend the selected one
+                    url = protocolSelect.value + url;
+                }
+            }
+            
+            return url;
+        }
 
         // URL validation
         function validateUrl(url) {
@@ -640,6 +751,7 @@
             errorMessage.style.display = 'block';
             successMessage.style.display = 'none';
             urlInput.classList.add('error');
+            inputGroup.classList.add('error');
             urlInput.focus();
         }
 
@@ -881,6 +993,34 @@
             }, hideDelay);
 
             return success;
+        }
+
+        // Reset form function
+        function resetForm() {
+            // Clear the input
+            urlInput.value = '';
+            
+            // Reset protocol to https
+            protocolSelect.value = 'https://';
+            
+            // Clear any error messages
+            clearMessages();
+            
+            // Remove error classes
+            urlInput.classList.remove('error');
+            inputGroup.classList.remove('error');
+            
+            // Hide the result container
+            resultContainer.style.display = 'none';
+            
+            // Clear the result URL
+            resultUrl.textContent = '';
+            
+            // Hide copy status
+            copyStatus.classList.remove('show');
+            
+            // Focus back on the input
+            urlInput.focus();
         }
 
         // Keyboard shortcuts
