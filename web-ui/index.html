@@ -1,1062 +1,1165 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>sqURL</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', system-ui, sans-serif;
-            background: #f8f9fa;
-            position: relative;
-            color: #1a1a1a;
-            line-height: 1.5;
-            min-height: 100vh;
-            min-height: 100svh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            font-size: 16px;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: url('background.jpg');
-            background-size: cover;
-            background-position: center center;
-            background-repeat: no-repeat;
-            opacity: 0.15;
-            z-index: -1;
-            /* Add a blue tint to the darker lines */
-            filter: sepia(100%) saturate(200%) hue-rotate(180deg);
-        }
-
-        .container {
-            width: 100%;
-            max-width: 480px;
-            margin: 0 auto;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 48px;
-        }
-
-        .title {
-            font-size: 32px;
-            font-weight: 600;
-            font-variant: small-caps;
-            color: #1a1a1a;
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
-        }
-
-        .subtitle {
-            font-size: 15px;
-            color: #6b7280;
-            font-weight: 400;
-        }
-
-        .form-container {
-            margin-bottom: 32px;
-        }
-
-        .input-group {
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            position: relative;
-        }
-
-        .protocol-select {
-            height: 48px;
-            padding: 0 12px;
-            padding-right: 8px;
-            border: 1px solid #e5e7eb;
-            border-right: none;
-            border-radius: 8px 0 0 8px;
-            font-size: 15px;
-            color: #6b7280;
-            background: #f9fafb;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-            min-width: 85px;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            outline: none;
-        }
-
-        .protocol-select:hover {
-            background: #f3f4f6;
-        }
-
-        .protocol-select:focus {
-            border-color: #0066cc;
-            background: #ffffff;
-            color: #111827;
-        }
-
-        .url-input {
-            flex: 1;
-            height: 48px;
-            padding: 0 16px;
-            border: 1px solid #e5e7eb;
-            border-radius: 0 8px 8px 0;
-            font-size: 15px;
-            transition: all 0.2s ease;
-            background: #ffffff;
-            outline: none;
-            -webkit-appearance: none;
-            -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
-            touch-action: manipulation;
-        }
-
-        .input-group:focus-within .protocol-select {
-            border-color: #0066cc;
-            background: #ffffff;
-            color: #111827;
-        }
-
-        .input-group:focus-within .url-input {
-            border-color: #0066cc;
-        }
-
-        .input-group:focus-within {
-            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-            border-radius: 8px;
-        }
-
-        .url-input.error,
-        .input-group.error .protocol-select {
-            border-color: #dc2626;
-        }
-
-        .input-group.error {
-            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-        }
-
-        .submit-btn {
-            width: 100%;
-            height: 48px;
-            background: #0066cc;
-            color: #ffffff;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            outline: none;
-            -webkit-appearance: none;
-            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-            touch-action: manipulation;
-            min-height: 44px;
-        }
-
-        .submit-btn:hover:not(:disabled) {
-            background: #0052a3;
-        }
-
-        .submit-btn:active {
-            transform: translateY(1px);
-        }
-
-        .submit-btn:disabled {
-            background: #9ca3af;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .submit-btn.loading {
-            position: relative;
-            color: transparent;
-        }
-
-        .submit-btn.loading::after {
-            content: '';
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            top: 50%;
-            left: 50%;
-            margin-left: -8px;
-            margin-top: -8px;
-            border: 2px solid transparent;
-            border-top: 2px solid #ffffff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .message {
-            margin-top: 12px;
-            padding: 12px 16px;
-            border-radius: 6px;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-
-        .error-message {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #dc2626;
-            display: none;
-        }
-
-        .success-message {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #166534;
-            display: none;
-        }
-
-        .result-container {
-            display: none;
-            margin-top: 32px;
-            animation: slideIn 0.3s ease;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .result-box {
-            padding: 20px;
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            margin-bottom: 16px;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-8px);
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
+        <title>sqURL</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
             }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
 
-        /* Performance optimizations */
-        .submit-btn.loading::after {
-            will-change: transform;
-        }
-
-        /* Ensure no horizontal scrolling */
-        html, body {
-            overflow-x: hidden;
-            width: 100%;
-        }
-
-        /* Better text rendering on mobile */
-        body {
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            text-rendering: optimizeLegibility;
-        }
-
-        .result-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: #6b7280;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .result-url {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            font-size: 16px;
-            color: #0066cc;
-            word-break: break-all;
-            padding: 12px 16px;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-            -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
-            touch-action: manipulation;
-            min-height: 44px;
-            display: flex;
-            align-items: center;
-        }
-
-        .result-url:hover {
-            background: #f8fafc;
-            border-color: #0066cc;
-        }
-
-        .copy-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-        }
-
-        .copy-btn,
-        .reset-btn {
-            padding: 12px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-width: 100px;
-            min-height: 44px;
-            -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-            touch-action: manipulation;
-        }
-
-        .copy-btn {
-            background: #0066cc;
-            color: #ffffff;
-        }
-
-        .copy-btn:hover {
-            background: #0052a3;
-        }
-
-        .reset-btn {
-            background: #6b7280;
-            color: #ffffff;
-        }
-
-        .reset-btn:hover {
-            background: #4b5563;
-        }
-
-        .copy-btn:active,
-        .reset-btn:active {
-            transform: translateY(1px);
-        }
-
-        .copy-status {
-            font-size: 13px;
-            font-weight: 500;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid transparent;
-            text-align: center;
-            margin-top: 8px;
-        }
-
-        .copy-status.show {
-            opacity: 1;
-        }
-
-        .copy-status.success {
-            color: #166534;
-            background: #f0fdf4;
-            border-color: #bbf7d0;
-        }
-
-        .copy-status.error {
-            color: #dc2626;
-            background: #fef2f2;
-            border-color: #fecaca;
-        }
-
-        /* Mobile responsive */
-        @media (max-width: 640px) {
             body {
-                padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Inter",
+                    "SF Pro Display", system-ui, sans-serif;
+                background: #f8f9fa;
+                position: relative;
+                color: #1a1a1a;
+                line-height: 1.5;
+                min-height: 100vh;
+                min-height: 100svh;
+                display: flex;
                 align-items: center;
                 justify-content: center;
-                min-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                padding: 24px;
+                font-size: 16px;
+            }
+
+            body::before {
+                content: "";
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image: url("background.jpg");
+                background-size: cover;
+                background-position: center center;
+                background-repeat: no-repeat;
+                opacity: 0.15;
+                z-index: -1;
+                /* Add a blue tint to the darker lines */
+                filter: sepia(100%) saturate(200%) hue-rotate(180deg);
             }
 
             .container {
-                max-width: 100%;
                 width: 100%;
+                max-width: 480px;
+                margin: 0 auto;
             }
 
             .header {
-                margin-bottom: clamp(32px, 8vw, 40px);
+                text-align: center;
+                margin-bottom: 48px;
             }
 
             .title {
-                font-size: clamp(20px, 5.5vw, 22px);
-            }
-
-            .protocol-select,
-            .url-input,
-            .submit-btn {
-                height: 52px;
-                font-size: 16px; /* Prevent zoom on iOS */
-                min-height: 44px;
-            }
-            
-            .protocol-select {
-                min-width: 90px;
-            }
-
-            .result-container {
-                margin-top: 24px;
-            }
-        }
-
-        /* Very small devices */
-        @media (max-width: 360px) {
-            body {
-                padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-                font-size: 15px;
-            }
-
-            .title {
-                font-size: clamp(18px, 6vw, 20px);
+                font-size: 38px;
+                font-weight: 600;
+                font-variant: small-caps;
+                color: #1a1a1a;
+                margin-bottom: 8px;
+                letter-spacing: -0.01em;
             }
 
             .subtitle {
-                font-size: 14px;
+                font-size: 22px;
+                color: #6b7280;
+                font-weight: 400;
+                font-style: italic;
             }
 
-            .protocol-select,
-            .url-input,
-            .submit-btn {
-                font-size: 16px;
-                padding: 0 12px;
+            .form-container {
+                margin-bottom: 32px;
             }
-            
+
+            .input-group {
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                position: relative;
+            }
+
             .protocol-select {
+                height: 48px;
+                padding: 0 12px;
+                padding-right: 8px;
+                border: 1px solid #e5e7eb;
+                border-right: none;
+                border-radius: 8px 0 0 8px;
+                font-size: 15px;
+                color: #6b7280;
+                background: #f9fafb;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+                min-width: 85px;
+                font-family:
+                    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+                    "Courier New", monospace;
+                outline: none;
+            }
+
+            .protocol-select:hover {
+                background: #f3f4f6;
+            }
+
+            .protocol-select:focus {
+                border-color: #0066cc;
+                background: #ffffff;
+                color: #111827;
+            }
+
+            .url-input {
+                flex: 1;
+                height: 48px;
+                padding: 0 16px;
+                border: 1px solid #e5e7eb;
+                border-radius: 0 8px 8px 0;
+                font-size: 15px;
+                transition: all 0.2s ease;
+                background: #ffffff;
+                outline: none;
+                -webkit-appearance: none;
+                -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
+                touch-action: manipulation;
+            }
+
+            .input-group:focus-within .protocol-select {
+                border-color: #0066cc;
+                background: #ffffff;
+                color: #111827;
+            }
+
+            .input-group:focus-within .url-input {
+                border-color: #0066cc;
+            }
+
+            .input-group:focus-within {
+                box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+                border-radius: 8px;
+            }
+
+            .url-input.error,
+            .input-group.error .protocol-select {
+                border-color: #dc2626;
+            }
+
+            .input-group.error {
+                box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+            }
+
+            .submit-btn {
+                width: 100%;
+                height: 48px;
+                background: #0066cc;
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                font-size: 18px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                outline: none;
+                -webkit-appearance: none;
+                -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+                touch-action: manipulation;
+                min-height: 44px;
+            }
+
+            .submit-btn:hover:not(:disabled) {
+                background: #0052a3;
+            }
+
+            .submit-btn:active {
+                transform: translateY(1px);
+            }
+
+            .submit-btn:disabled {
+                background: #9ca3af;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+            .submit-btn.loading {
+                position: relative;
+                color: transparent;
+            }
+
+            .submit-btn.loading::after {
+                content: "";
+                position: absolute;
+                width: 16px;
+                height: 16px;
+                top: 50%;
+                left: 50%;
+                margin-left: -8px;
+                margin-top: -8px;
+                border: 2px solid transparent;
+                border-top: 2px solid #ffffff;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+            }
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+
+            .message {
+                margin-top: 12px;
+                padding: 12px 16px;
+                border-radius: 6px;
                 font-size: 14px;
-                min-width: 75px;
-                padding: 0 8px;
+                line-height: 1.4;
+            }
+
+            .error-message {
+                background: #fef2f2;
+                border: 1px solid #fecaca;
+                color: #dc2626;
+                display: none;
+            }
+
+            .success-message {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                color: #166534;
+                display: none;
+            }
+
+            .result-container {
+                display: none;
+                margin-top: 32px;
+                animation: slideIn 0.3s ease;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .result-box {
+                padding: 20px;
+                background: #f9fafb;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                margin-bottom: 16px;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            /* Performance optimizations */
+            .submit-btn.loading::after {
+                will-change: transform;
+            }
+
+            /* Ensure no horizontal scrolling */
+            html,
+            body {
+                overflow-x: hidden;
+                width: 100%;
+            }
+
+            /* Better text rendering on mobile */
+            body {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                text-rendering: optimizeLegibility;
+            }
+
+            .result-label {
+                font-size: 13px;
+                font-weight: 500;
+                color: #6b7280;
+                margin-bottom: 8px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
             }
 
             .result-url {
-                font-size: 14px;
-                padding: 10px 12px;
+                font-family:
+                    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+                    "Courier New", monospace;
+                font-size: 16px;
+                color: #0066cc;
+                word-break: break-all;
+                padding: 12px 16px;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                margin-bottom: 12px;
+                cursor: pointer;
+                transition:
+                    background-color 0.2s ease,
+                    border-color 0.2s ease;
+                -webkit-tap-highlight-color: rgba(0, 102, 204, 0.1);
+                touch-action: manipulation;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+            }
+
+            .result-url:hover {
+                background: #f8fafc;
+                border-color: #0066cc;
             }
 
             .copy-actions {
-                flex-direction: column;
-                gap: 8px;
+                display: flex;
+                gap: 12px;
+                justify-content: center;
             }
 
             .copy-btn,
             .reset-btn {
-                width: 100%;
-                min-width: unset;
+                padding: 12px 16px;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                min-width: 100px;
+                min-height: 44px;
+                -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+                touch-action: manipulation;
             }
-        }
 
-        /* Focus visible for accessibility */
-        .protocol-select:focus-visible,
-        .url-input:focus-visible,
-        .submit-btn:focus-visible,
-        .copy-btn:focus-visible,
-        .reset-btn:focus-visible {
-            outline: 2px solid #0066cc;
-            outline-offset: 2px;
-        }
-
-        /* Reduced motion support */
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
+            .copy-btn {
+                background: #0066cc;
+                color: #ffffff;
             }
-        }
-        .footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: max(16px, env(safe-area-inset-bottom)) 24px 16px;
-            text-align: center;
-            font-size: 12px;
-            color: #9ca3af;
-            background: linear-gradient(to top, rgba(248, 249, 250, 0.9), transparent);
-            z-index: 10;
-            transform: translateZ(0);
-        }
 
-        .footer p {
-            margin: 0;
-            letter-spacing: 0.025em;
-        }
+            .copy-btn:hover {
+                background: #0052a3;
+            }
 
-        .footer a {
-            color: #6b7280;
-            text-decoration: none;
-            transition: color 0.2s ease;
-        }
+            .reset-btn {
+                background: #6b7280;
+                color: #ffffff;
+            }
 
-        .footer a:hover {
-            color: #374151;
-            text-decoration: underline;
-        }
+            .reset-btn:hover {
+                background: #4b5563;
+            }
 
-        /* Adjust container padding to account for footer */
-        @media (max-height: 500px) {
+            .copy-btn:active,
+            .reset-btn:active {
+                transform: translateY(1px);
+            }
+
+            .copy-status {
+                font-size: 13px;
+                font-weight: 500;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid transparent;
+                text-align: center;
+                margin-top: 8px;
+            }
+
+            .copy-status.show {
+                opacity: 1;
+            }
+
+            .copy-status.success {
+                color: #166534;
+                background: #f0fdf4;
+                border-color: #bbf7d0;
+            }
+
+            .copy-status.error {
+                color: #dc2626;
+                background: #fef2f2;
+                border-color: #fecaca;
+            }
+
+            /* Mobile responsive */
+            @media (max-width: 640px) {
+                body {
+                    padding: max(16px, env(safe-area-inset-top))
+                        max(16px, env(safe-area-inset-right))
+                        max(16px, env(safe-area-inset-bottom))
+                        max(16px, env(safe-area-inset-left));
+                    align-items: center;
+                    justify-content: center;
+                    min-height: calc(
+                        100svh - env(safe-area-inset-top) -
+                            env(safe-area-inset-bottom)
+                    );
+                }
+
+                .container {
+                    max-width: 100%;
+                    width: 100%;
+                }
+
+                .header {
+                    margin-bottom: clamp(32px, 8vw, 40px);
+                }
+
+                .title {
+                    font-size: clamp(20px, 5.5vw, 22px);
+                }
+
+                .protocol-select,
+                .url-input,
+                .submit-btn {
+                    height: 52px;
+                    font-size: 16px; /* Prevent zoom on iOS */
+                    min-height: 44px;
+                }
+
+                .protocol-select {
+                    min-width: 90px;
+                }
+
+                .result-container {
+                    margin-top: 24px;
+                }
+            }
+
+            /* Very small devices */
+            @media (max-width: 360px) {
+                body {
+                    padding: max(12px, env(safe-area-inset-top))
+                        max(12px, env(safe-area-inset-right))
+                        max(12px, env(safe-area-inset-bottom))
+                        max(12px, env(safe-area-inset-left));
+                    font-size: 15px;
+                }
+
+                .title {
+                    font-size: clamp(18px, 6vw, 20px);
+                }
+
+                .subtitle {
+                    font-size: 14px;
+                }
+
+                .protocol-select,
+                .url-input,
+                .submit-btn {
+                    font-size: 16px;
+                    padding: 0 12px;
+                }
+
+                .protocol-select {
+                    font-size: 14px;
+                    min-width: 75px;
+                    padding: 0 8px;
+                }
+
+                .result-url {
+                    font-size: 14px;
+                    padding: 10px 12px;
+                }
+
+                .copy-actions {
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .copy-btn,
+                .reset-btn {
+                    width: 100%;
+                    min-width: unset;
+                }
+            }
+
+            /* Focus visible for accessibility */
+            .protocol-select:focus-visible,
+            .url-input:focus-visible,
+            .submit-btn:focus-visible,
+            .copy-btn:focus-visible,
+            .reset-btn:focus-visible {
+                outline: 2px solid #0066cc;
+                outline-offset: 2px;
+            }
+
+            /* Reduced motion support */
+            @media (prefers-reduced-motion: reduce) {
+                * {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
             .footer {
-                position: static;
-                background: transparent;
-                padding: 16px 0 0;
-                margin-top: 32px;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                padding: max(16px, env(safe-area-inset-bottom)) 24px 16px;
+                text-align: center;
+                font-size: 12px;
+                color: #9ca3af;
+                background: linear-gradient(
+                    to top,
+                    rgba(248, 249, 250, 0.9),
+                    transparent
+                );
+                z-index: 10;
+                transform: translateZ(0);
             }
 
-            body {
-                min-height: auto;
-                align-items: flex-start;
-                padding-top: 20px;
+            .footer p {
+                margin: 0;
+                letter-spacing: 0.025em;
             }
-        }
 
-        @media (max-height: 700px) and (min-height: 501px) {
-            body {
-                padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 44px));
+            .footer a {
+                color: #6b7280;
+                text-decoration: none;
+                transition: color 0.2s ease;
             }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1 class="title">sqURL</h1>
-            <p class="subtitle"><i style="color:#777777;">(v. squeeze URL)</i></p>
-            <p class="subtitle">Create short, shareable links</p>
-        </header>
 
-        <main>
-            <form id="urlForm" class="form-container">
-                <div class="input-group" id="inputGroup">
-                    <select id="protocolSelect" class="protocol-select">
-                        <option value="https://">https://</option>
-                        <option value="http://">http://</option>
-                    </select>
-                    <input
-                        type="text"
-                        id="urlInput"
-                        class="url-input"
-                        placeholder="example.com/your-long-url"
-                        required
-                        autocomplete="off"
-                        spellcheck="false"
-                        inputmode="url"
-                    >
-                </div>
+            .footer a:hover {
+                color: #374151;
+                text-decoration: underline;
+            }
 
-                <button type="submit" id="submitBtn" class="submit-btn">
-                    Shorten URL
-                </button>
+            /* Adjust container padding to account for footer */
+            @media (max-height: 500px) {
+                .footer {
+                    position: static;
+                    background: transparent;
+                    padding: 16px 0 0;
+                    margin-top: 32px;
+                }
 
-                <div id="errorMessage" class="message error-message"></div>
-                <div id="successMessage" class="message success-message"></div>
-            </form>
+                body {
+                    min-height: auto;
+                    align-items: flex-start;
+                    padding-top: 20px;
+                }
+            }
 
-            <div id="resultContainer" class="result-container">
-                <div class="result-box">
-                    <div class="result-label">Shortened URL</div>
-                    <div id="resultUrl" class="result-url" onclick="copyToClipboard(this.textContent)" title="Click to copy"></div>
-                    <div class="copy-actions">
-                        <button id="copyBtn" class="copy-btn" onclick="copyToClipboard(document.getElementById('resultUrl').textContent)">
-                            Copy URL
-                        </button>
-                        <button id="resetBtn" class="reset-btn" onclick="resetForm()">
-                            Reset
-                        </button>
+            @media (max-height: 700px) and (min-height: 501px) {
+                body {
+                    padding-bottom: max(
+                        60px,
+                        calc(env(safe-area-inset-bottom) + 44px)
+                    );
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header class="header">
+                <h1 class="title">sqURL</h1>
+                <p class="subtitle">
+                    (v. to squeeze a URL into a short, shareable link)
+                </p>
+            </header>
+
+            <main>
+                <form id="urlForm" class="form-container">
+                    <div class="input-group" id="inputGroup">
+                        <select id="protocolSelect" class="protocol-select">
+                            <option value="https://">https://</option>
+                            <option value="http://">http://</option>
+                        </select>
+                        <input
+                            type="text"
+                            id="urlInput"
+                            class="url-input"
+                            placeholder="example.com/your-long-url"
+                            required
+                            autocomplete="off"
+                            spellcheck="false"
+                            inputmode="url"
+                        />
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="submit-btn">
+                        Squeeze
+                    </button>
+
+                    <div
+                        id="errorMessage"
+                        class="message error-mess into asage"
+                        class="message success-message"
+                    ></div>
+                </form>
+
+                <div id="resultContainer" class="result-container">
+                    <div class="result-box">
+                        <div class="result-label">Shortened URL</div>
+                        <div
+                            id="resultUrl"
+                            class="result-url"
+                            onclick="copyToClipboard(this.textContent)"
+                            title="Click to copy"
+                        ></div>
+                        <div class="copy-actions">
+                            <button
+                                id="copyBtn"
+                                class="copy-btn"
+                                onclick="copyToClipboard(document.getElementById('resultUrl').textContent)"
+                            >
+                                Copy URL
+                            </button>
+                            <button
+                                id="resetBtn"
+                                class="reset-btn"
+                                onclick="resetForm()"
+                            >
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                    <div id="copyStatus" class="copy-status">
+                        Copied to clipboard
                     </div>
                 </div>
-                <div id="copyStatus" class="copy-status">Copied to clipboard</div>
-            </div>
-        </main>
-    </div>
+            </main>
+        </div>
 
-    <script>
-        // DOM elements
-        const form = document.getElementById('urlForm');
-        const urlInput = document.getElementById('urlInput');
-        const protocolSelect = document.getElementById('protocolSelect');
-        const inputGroup = document.getElementById('inputGroup');
-        const submitBtn = document.getElementById('submitBtn');
-        const errorMessage = document.getElementById('errorMessage');
-        const successMessage = document.getElementById('successMessage');
-        const resultContainer = document.getElementById('resultContainer');
-        const resultUrl = document.getElementById('resultUrl');
-        const copyStatus = document.getElementById('copyStatus');
+        <script>
+            // DOM elements
+            const form = document.getElementById("urlForm");
+            const urlInput = document.getElementById("urlInput");
+            const protocolSelect = document.getElementById("protocolSelect");
+            const inputGroup = document.getElementById("inputGroup");
+            const submitBtn = document.getElementById("submitBtn");
+            const errorMessage = document.getElementById("errorMessage");
+            const successMessage = document.getElementById("successMessage");
+            const resultContainer = document.getElementById("resultContainer");
+            const resultUrl = document.getElementById("resultUrl");
+            const copyStatus = document.getElementById("copyStatus");
 
-        // Form submission handler
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
+            // Form submission handler
+            form.addEventListener("submit", async function (e) {
+                e.preventDefault();
 
-            const url = getProcessedUrl();
+                const url = getProcessedUrl();
 
-            if (!validateUrl(url)) {
-                return;
-            }
-
-            await shortenUrl(url);
-        });
-
-        // Input validation on change
-        urlInput.addEventListener('input', function() {
-            clearMessages();
-            this.classList.remove('error');
-            inputGroup.classList.remove('error');
-        });
-
-        // Get the processed URL with protocol
-        function getProcessedUrl() {
-            let url = urlInput.value.trim();
-            
-            if (!url) {
-                return '';
-            }
-
-            // Check if URL already has a protocol
-            const hasProtocol = /^https?:\/\//i.test(url);
-            
-            if (!hasProtocol) {
-                // If URL starts with //, it's protocol-relative, so prepend the selected protocol
-                if (url.startsWith('//')) {
-                    url = protocolSelect.value.replace('//', '') + url;
-                } else {
-                    // No protocol at all, prepend the selected one
-                    url = protocolSelect.value + url;
+                if (!validateUrl(url)) {
+                    return;
                 }
-            }
-            
-            return url;
-        }
 
-        // URL validation
-        function validateUrl(url) {
-            if (!url) {
-                showError('Please enter a URL');
-                return false;
+                await shortenUrl(url);
+            });
+
+            // Input validation on change
+            urlInput.addEventListener("input", function () {
+                clearMessages();
+                this.classList.remove("error");
+                inputGroup.classList.remove("error");
+            });
+
+            // Get the processed URL with protocol
+            function getProcessedUrl() {
+                let url = urlInput.value.trim();
+
+                if (!url) {
+                    return "";
+                }
+
+                // Check if URL already has a protocol
+                const hasProtocol = /^https?:\/\//i.test(url);
+
+                if (!hasProtocol) {
+                    // If URL starts with //, it's protocol-relative, so prepend the selected protocol
+                    if (url.startsWith("//")) {
+                        url = protocolSelect.value.replace("//", "") + url;
+                    } else {
+                        // No protocol at all, prepend the selected one
+                        url = protocolSelect.value + url;
+                    }
+                }
+
+                return url;
             }
 
-            try {
-                const urlObj = new URL(url);
-                if (!['http:', 'https:'].includes(urlObj.protocol)) {
-                    showError('Please enter a valid HTTP or HTTPS URL');
+            // URL validation
+            function validateUrl(url) {
+                if (!url) {
+                    showError("Please enter a URL");
                     return false;
                 }
-                return true;
-            } catch (e) {
-                showError('Please enter a valid URL');
-                return false;
-            }
-        }
 
-        // Main function to shorten URL
-        async function shortenUrl(originalUrl) {
-            setLoading(true);
-            clearMessages();
-
-            try {
-                const response = await fetch('/create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        original_url: originalUrl
-                    })
-                });
-
-                // Check for rate limiting (WAF returns 403)
-                if (response.status === 403) {
-                    throw new Error('Rate limit exceeded. Please wait a few minutes and try again.');
-                }
-
-                // Check for too many requests (alternative rate limiting)
-                if (response.status === 429) {
-                    throw new Error('Too many requests. Please wait a moment and try again.');
-                }
-
-                // Only try to parse JSON if response is ok or has JSON content
-                let data = {};
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    data = await response.json();
-                }
-
-                if (!response.ok) {
-                    throw new Error(data.error || `Request failed: ${response.status}`);
-                }
-
-                if (!data.short_url) {
-                    throw new Error('Invalid response from server');
-                }
-
-                // Show result - auto-copy happens inside showResult
-                showResult(data.short_url);
-
-                // Clear the input
-                urlInput.value = '';
-
-            } catch (error) {
-                console.error('Error shortening URL:', error);
-
-                // Handle different error types
-                let errorMsg = 'Failed to shorten URL. Please try again.';
-
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    errorMsg = 'Network error. Please check your connection.';
-                } else if (error.message.includes('400')) {
-                    errorMsg = 'Invalid URL format. Please check your URL.';
-                } else if (error.message.includes('Rate limit')) {
-                    // Rate limit errors are already well-formatted
-                    errorMsg = error.message;
-                } else if (error.message.includes('Too many requests')) {
-                    // Too many requests errors are already well-formatted
-                    errorMsg = error.message;
-                } else if (error.message) {
-                    errorMsg = error.message;
-                }
-
-                showError(errorMsg);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        // Show/hide loading state
-        function setLoading(loading) {
-            submitBtn.disabled = loading;
-            if (loading) {
-                submitBtn.classList.add('loading');
-            } else {
-                submitBtn.classList.remove('loading');
-            }
-        }
-
-        // Show error message
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            successMessage.style.display = 'none';
-            urlInput.classList.add('error');
-            inputGroup.classList.add('error');
-            urlInput.focus();
-        }
-
-        // Show success message
-        function showSuccess(message) {
-            successMessage.textContent = message;
-            successMessage.style.display = 'block';
-            errorMessage.style.display = 'none';
-            urlInput.classList.remove('error');
-        }
-
-        // Clear all messages
-        function clearMessages() {
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-            urlInput.classList.remove('error');
-        }
-
-        // Show result
-        function showResult(shortUrl) {
-            resultUrl.textContent = shortUrl;
-            resultContainer.style.display = 'block';
-            // Enhanced mobile scrolling
-            const isMobile = window.innerWidth <= 640;
-            if (isMobile) {
-                // Use a slight delay for mobile to ensure smooth scrolling
-                setTimeout(() => {
-                    resultContainer.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center',
-                        inline: 'nearest'
-                    });
-                }, 150);
-            } else {
-                resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-
-            // Automatically copy to clipboard
-            setTimeout(() => {
-                copyToClipboard(shortUrl);
-            }, 100); // Small delay to ensure DOM is updated
-        }
-
-        /**
-         * Bulletproof clipboard copy function with comprehensive error handling
-         * and multiple fallback strategies for maximum browser compatibility
-         */
-        async function copyToClipboard(text) {
-            const debug = {
-                method: 'unknown',
-                error: null,
-                context: {
-                    isSecureContext: window.isSecureContext,
-                    hasClipboardAPI: !!(navigator.clipboard),
-                    hasWriteText: !!(navigator.clipboard && navigator.clipboard.writeText),
-                    protocol: window.location.protocol,
-                    userAgent: navigator.userAgent.substring(0, 100)
-                }
-            };
-
-            let success = false;
-            let errorMessage = '';
-
-            // Strategy 1: Modern Clipboard API with user gesture validation
-            if (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) {
                 try {
-                    debug.method = 'clipboard-api';
-
-                    // Check for user activation (required for clipboard access)
-                    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
-                        throw new Error('No user activation detected');
+                    const urlObj = new URL(url);
+                    if (!["http:", "https:"].includes(urlObj.protocol)) {
+                        showError("Please enter a valid HTTP or HTTPS URL");
+                        return false;
                     }
-
-                    await navigator.clipboard.writeText(text);
-                    success = true;
-                    console.log('✅ Clipboard API copy successful');
-
-                } catch (err) {
-                    debug.error = err.message;
-                    console.warn('❌ Clipboard API failed:', err.name, err.message);
-
-                    // Common error handling
-                    if (err.name === 'NotAllowedError') {
-                        errorMessage = 'Clipboard access denied by browser';
-                    } else if (err.name === 'SecurityError') {
-                        errorMessage = 'Security restriction prevented copy';
-                    } else if (err.message.includes('user activation')) {
-                        errorMessage = 'User gesture required for clipboard access';
-                    }
+                    return true;
+                } catch (e) {
+                    showError("Please enter a valid URL");
+                    return false;
                 }
             }
 
-            // Strategy 2: Enhanced execCommand fallback with proper focus handling
-            if (!success) {
-                try {
-                    debug.method = 'execcommand';
-
-                    // Store current focus to restore later
-                    const activeElement = document.activeElement;
-
-                    // Create optimized textarea for copy operation
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-
-                    // Critical styling for cross-browser compatibility
-                    Object.assign(textArea.style, {
-                        position: 'fixed',
-                        top: '0',
-                        left: '0',
-                        width: '2em',
-                        height: '2em',
-                        padding: '0',
-                        border: 'none',
-                        outline: 'none',
-                        boxShadow: 'none',
-                        background: 'transparent',
-                        fontSize: '16px', // Prevent zoom on iOS
-                        opacity: '0',
-                        zIndex: '-1000'
-                    });
-
-                    textArea.setAttribute('readonly', '');
-                    textArea.setAttribute('aria-hidden', 'true');
-                    textArea.setAttribute('tabindex', '-1');
-
-                    document.body.appendChild(textArea);
-
-                    // Enhanced selection for mobile compatibility
-                    textArea.focus({ preventScroll: true });
-                    textArea.select();
-
-                    // iOS Safari specific handling
-                    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                        textArea.setSelectionRange(0, text.length);
-                        textArea.readOnly = false;
-                    } else {
-                        textArea.setSelectionRange(0, 99999);
-                    }
-
-                    // Attempt copy
-                    const copyResult = document.execCommand('copy');
-                    success = copyResult;
-
-                    // Cleanup
-                    document.body.removeChild(textArea);
-
-                    // Restore focus
-                    if (activeElement && activeElement.focus) {
-                        activeElement.focus();
-                    }
-
-                    if (success) {
-                        console.log('✅ execCommand copy successful');
-                    } else {
-                        console.warn('❌ execCommand returned false');
-                        errorMessage = 'Browser rejected copy command';
-                    }
-
-                } catch (err) {
-                    debug.error = err.message;
-                    console.warn('❌ execCommand fallback failed:', err);
-                    errorMessage = 'Copy command not supported';
-                }
-            }
-
-            // Strategy 3: Selection API fallback (for some mobile browsers)
-            if (!success && window.getSelection) {
-                try {
-                    debug.method = 'selection-api';
-
-                    const range = document.createRange();
-                    const tempDiv = document.createElement('div');
-                    tempDiv.style.position = 'fixed';
-                    tempDiv.style.left = '-9999px';
-                    tempDiv.textContent = text;
-
-                    document.body.appendChild(tempDiv);
-                    range.selectNodeContents(tempDiv);
-
-                    const selection = window.getSelection();
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-
-                    success = document.execCommand('copy');
-
-                    selection.removeAllRanges();
-                    document.body.removeChild(tempDiv);
-
-                    if (success) {
-                        console.log('✅ Selection API copy successful');
-                    }
-
-                } catch (err) {
-                    debug.error = err.message;
-                    console.warn('❌ Selection API fallback failed:', err);
-                }
-            }
-
-            // Provide detailed feedback based on results
-            let feedbackMessage = '';
-            let feedbackClass = '';
-
-            if (success) {
-                feedbackMessage = 'Copied to clipboard!';
-                feedbackClass = 'success';
-                console.log('📋 Copy operation completed successfully via:', debug.method);
-            } else {
-                // Determine specific failure message
-                if (errorMessage) {
-                    feedbackMessage = errorMessage;
-                } else if (!window.isSecureContext) {
-                    feedbackMessage = 'Secure connection required for clipboard access';
-                } else if (!navigator.clipboard) {
-                    feedbackMessage = 'Clipboard not supported in this browser';
-                } else {
-                    feedbackMessage = 'Copy failed - please select and copy manually';
-                }
-
-                feedbackClass = 'error';
-
-                // Log comprehensive debug information for troubleshooting
-                console.group('📋 Copy operation failed - Debug information:');
-                console.log('Context:', debug.context);
-                console.log('Last attempted method:', debug.method);
-                console.log('Last error:', debug.error);
-                console.log('Text to copy:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
-                console.groupEnd();
-            }
-
-            // Update UI with feedback
-            copyStatus.textContent = feedbackMessage;
-            copyStatus.className = `copy-status ${feedbackClass}`;
-            copyStatus.classList.add('show');
-
-            // Auto-hide feedback after appropriate duration
-            const hideDelay = success ? 2500 : 5000; // Show errors longer
-            setTimeout(() => {
-                copyStatus.classList.remove('show');
-            }, hideDelay);
-
-            return success;
-        }
-
-        // Reset form function
-        function resetForm() {
-            // Clear the input
-            urlInput.value = '';
-            
-            // Reset protocol to https
-            protocolSelect.value = 'https://';
-            
-            // Clear any error messages
-            clearMessages();
-            
-            // Remove error classes
-            urlInput.classList.remove('error');
-            inputGroup.classList.remove('error');
-            
-            // Hide the result container
-            resultContainer.style.display = 'none';
-            
-            // Clear the result URL
-            resultUrl.textContent = '';
-            
-            // Hide copy status
-            copyStatus.classList.remove('show');
-            
-            // Focus back on the input
-            urlInput.focus();
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            // Escape to clear and focus input
-            if (e.key === 'Escape') {
-                urlInput.value = '';
+            // Main function to shorten URL
+            async function shortenUrl(originalUrl) {
+                setLoading(true);
                 clearMessages();
-                resultContainer.style.display = 'none';
+
+                try {
+                    const response = await fetch("/create", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            original_url: originalUrl,
+                        }),
+                    });
+
+                    // Check for rate limiting (WAF returns 403)
+                    if (response.status === 403) {
+                        throw new Error(
+                            "Rate limit exceeded. Please wait a few minutes and try again.",
+                        );
+                    }
+
+                    // Check for too many requests (alternative rate limiting)
+                    if (response.status === 429) {
+                        throw new Error(
+                            "Too many requests. Please wait a moment and try again.",
+                        );
+                    }
+
+                    // Only try to parse JSON if response is ok or has JSON content
+                    let data = {};
+                    const contentType = response.headers.get("content-type");
+                    if (
+                        contentType &&
+                        contentType.includes("application/json")
+                    ) {
+                        data = await response.json();
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(
+                            data.error || `Request failed: ${response.status}`,
+                        );
+                    }
+
+                    if (!data.short_url) {
+                        throw new Error("Invalid response from server");
+                    }
+
+                    // Show result - auto-copy happens inside showResult
+                    showResult(data.short_url);
+
+                    // Clear the input
+                    urlInput.value = "";
+                } catch (error) {
+                    console.error("Error shortening URL:", error);
+
+                    // Handle different error types
+                    let errorMsg = "Failed to shorten URL. Please try again.";
+
+                    if (
+                        error.name === "TypeError" &&
+                        error.message.includes("fetch")
+                    ) {
+                        errorMsg =
+                            "Network error. Please check your connection.";
+                    } else if (error.message.includes("400")) {
+                        errorMsg = "Invalid URL format. Please check your URL.";
+                    } else if (error.message.includes("Rate limit")) {
+                        // Rate limit errors are already well-formatted
+                        errorMsg = error.message;
+                    } else if (error.message.includes("Too many requests")) {
+                        // Too many requests errors are already well-formatted
+                        errorMsg = error.message;
+                    } else if (error.message) {
+                        errorMsg = error.message;
+                    }
+
+                    showError(errorMsg);
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            // Show/hide loading state
+            function setLoading(loading) {
+                submitBtn.disabled = loading;
+                if (loading) {
+                    submitBtn.classList.add("loading");
+                } else {
+                    submitBtn.classList.remove("loading");
+                }
+            }
+
+            // Show error message
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = "block";
+                successMessage.style.display = "none";
+                urlInput.classList.add("error");
+                inputGroup.classList.add("error");
                 urlInput.focus();
             }
 
-            // Ctrl/Cmd+C to copy result when visible
-            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && resultContainer.style.display !== 'none') {
-                const resultText = resultUrl.textContent;
-                if (resultText) {
-                    e.preventDefault();
-                    copyToClipboard(resultText);
-                }
+            // Show success message
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = "block";
+                errorMessage.style.display = "none";
+                urlInput.classList.remove("error");
             }
-        });
 
-        // Auto-focus input on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            urlInput.focus();
-        });
-    </script>
+            // Clear all messages
+            function clearMessages() {
+                errorMessage.style.display = "none";
+                successMessage.style.display = "none";
+                urlInput.classList.remove("error");
+            }
 
-    <footer class="footer">
-        <p id="copyright">© 2025 <a href="https://www.linkedin.com/in/ronforresterpdx/" target="_blank" rel="noopener noreferrer">Ron Forrester</a>. All rights reserved.</p>
-    </footer>
+            // Show result
+            function showResult(shortUrl) {
+                resultUrl.textContent = shortUrl;
+                resultContainer.style.display = "block";
+                // Enhanced mobile scrolling
+                const isMobile = window.innerWidth <= 640;
+                if (isMobile) {
+                    // Use a slight delay for mobile to ensure smooth scrolling
+                    setTimeout(() => {
+                        resultContainer.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center",
+                            inline: "nearest",
+                        });
+                    }, 150);
+                } else {
+                    resultContainer.scrollIntoView({
+                        behavior: "smooth",
+                        block: "nearest",
+                    });
+                }
 
-    <script>
-        // Update copyright year dynamically
-        const currentYear = new Date().getFullYear();
-        document.getElementById('copyright').innerHTML = `© ${currentYear} <a href="https://www.linkedin.com/in/ronforresterpdx/" target="_blank" rel="noopener noreferrer">Ron Forrester</a>. All rights reserved.`;
-    </script>
-</body>
+                // Automatically copy to clipboard
+                setTimeout(() => {
+                    copyToClipboard(shortUrl);
+                }, 100); // Small delay to ensure DOM is updated
+            }
+
+            /**
+             * Bulletproof clipboard copy function with comprehensive error handling
+             * and multiple fallback strategies for maximum browser compatibility
+             */
+            async function copyToClipboard(text) {
+                const debug = {
+                    method: "unknown",
+                    error: null,
+                    context: {
+                        isSecureContext: window.isSecureContext,
+                        hasClipboardAPI: !!navigator.clipboard,
+                        hasWriteText: !!(
+                            navigator.clipboard && navigator.clipboard.writeText
+                        ),
+                        protocol: window.location.protocol,
+                        userAgent: navigator.userAgent.substring(0, 100),
+                    },
+                };
+
+                let success = false;
+                let errorMessage = "";
+
+                // Strategy 1: Modern Clipboard API with user gesture validation
+                if (
+                    navigator.clipboard &&
+                    window.isSecureContext &&
+                    navigator.clipboard.writeText
+                ) {
+                    try {
+                        debug.method = "clipboard-api";
+
+                        // Check for user activation (required for clipboard access)
+                        if (
+                            navigator.userActivation &&
+                            !navigator.userActivation.hasBeenActive
+                        ) {
+                            throw new Error("No user activation detected");
+                        }
+
+                        await navigator.clipboard.writeText(text);
+                        success = true;
+                        console.log("✅ Clipboard API copy successful");
+                    } catch (err) {
+                        debug.error = err.message;
+                        console.warn(
+                            "❌ Clipboard API failed:",
+                            err.name,
+                            err.message,
+                        );
+
+                        // Common error handling
+                        if (err.name === "NotAllowedError") {
+                            errorMessage = "Clipboard access denied by browser";
+                        } else if (err.name === "SecurityError") {
+                            errorMessage =
+                                "Security restriction prevented copy";
+                        } else if (err.message.includes("user activation")) {
+                            errorMessage =
+                                "User gesture required for clipboard access";
+                        }
+                    }
+                }
+
+                // Strategy 2: Enhanced execCommand fallback with proper focus handling
+                if (!success) {
+                    try {
+                        debug.method = "execcommand";
+
+                        // Store current focus to restore later
+                        const activeElement = document.activeElement;
+
+                        // Create optimized textarea for copy operation
+                        const textArea = document.createElement("textarea");
+                        textArea.value = text;
+
+                        // Critical styling for cross-browser compatibility
+                        Object.assign(textArea.style, {
+                            position: "fixed",
+                            top: "0",
+                            left: "0",
+                            width: "2em",
+                            height: "2em",
+                            padding: "0",
+                            border: "none",
+                            outline: "none",
+                            boxShadow: "none",
+                            background: "transparent",
+                            fontSize: "16px", // Prevent zoom on iOS
+                            opacity: "0",
+                            zIndex: "-1000",
+                        });
+
+                        textArea.setAttribute("readonly", "");
+                        textArea.setAttribute("aria-hidden", "true");
+                        textArea.setAttribute("tabindex", "-1");
+
+                        document.body.appendChild(textArea);
+
+                        // Enhanced selection for mobile compatibility
+                        textArea.focus({ preventScroll: true });
+                        textArea.select();
+
+                        // iOS Safari specific handling
+                        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                            textArea.setSelectionRange(0, text.length);
+                            textArea.readOnly = false;
+                        } else {
+                            textArea.setSelectionRange(0, 99999);
+                        }
+
+                        // Attempt copy
+                        const copyResult = document.execCommand("copy");
+                        success = copyResult;
+
+                        // Cleanup
+                        document.body.removeChild(textArea);
+
+                        // Restore focus
+                        if (activeElement && activeElement.focus) {
+                            activeElement.focus();
+                        }
+
+                        if (success) {
+                            console.log("✅ execCommand copy successful");
+                        } else {
+                            console.warn("❌ execCommand returned false");
+                            errorMessage = "Browser rejected copy command";
+                        }
+                    } catch (err) {
+                        debug.error = err.message;
+                        console.warn("❌ execCommand fallback failed:", err);
+                        errorMessage = "Copy command not supported";
+                    }
+                }
+
+                // Strategy 3: Selection API fallback (for some mobile browsers)
+                if (!success && window.getSelection) {
+                    try {
+                        debug.method = "selection-api";
+
+                        const range = document.createRange();
+                        const tempDiv = document.createElement("div");
+                        tempDiv.style.position = "fixed";
+                        tempDiv.style.left = "-9999px";
+                        tempDiv.textContent = text;
+
+                        document.body.appendChild(tempDiv);
+                        range.selectNodeContents(tempDiv);
+
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+
+                        success = document.execCommand("copy");
+
+                        selection.removeAllRanges();
+                        document.body.removeChild(tempDiv);
+
+                        if (success) {
+                            console.log("✅ Selection API copy successful");
+                        }
+                    } catch (err) {
+                        debug.error = err.message;
+                        console.warn("❌ Selection API fallback failed:", err);
+                    }
+                }
+
+                // Provide detailed feedback based on results
+                let feedbackMessage = "";
+                let feedbackClass = "";
+
+                if (success) {
+                    feedbackMessage = "Copied to clipboard!";
+                    feedbackClass = "success";
+                    console.log(
+                        "📋 Copy operation completed successfully via:",
+                        debug.method,
+                    );
+                } else {
+                    // Determine specific failure message
+                    if (errorMessage) {
+                        feedbackMessage = errorMessage;
+                    } else if (!window.isSecureContext) {
+                        feedbackMessage =
+                            "Secure connection required for clipboard access";
+                    } else if (!navigator.clipboard) {
+                        feedbackMessage =
+                            "Clipboard not supported in this browser";
+                    } else {
+                        feedbackMessage =
+                            "Copy failed - please select and copy manually";
+                    }
+
+                    feedbackClass = "error";
+
+                    // Log comprehensive debug information for troubleshooting
+                    console.group(
+                        "📋 Copy operation failed - Debug information:",
+                    );
+                    console.log("Context:", debug.context);
+                    console.log("Last attempted method:", debug.method);
+                    console.log("Last error:", debug.error);
+                    console.log(
+                        "Text to copy:",
+                        text.substring(0, 50) + (text.length > 50 ? "..." : ""),
+                    );
+                    console.groupEnd();
+                }
+
+                // Update UI with feedback
+                copyStatus.textContent = feedbackMessage;
+                copyStatus.className = `copy-status ${feedbackClass}`;
+                copyStatus.classList.add("show");
+
+                // Auto-hide feedback after appropriate duration
+                const hideDelay = success ? 2500 : 5000; // Show errors longer
+                setTimeout(() => {
+                    copyStatus.classList.remove("show");
+                }, hideDelay);
+
+                return success;
+            }
+
+            // Reset form function
+            function resetForm() {
+                // Clear the input
+                urlInput.value = "";
+
+                // Reset protocol to https
+                protocolSelect.value = "https://";
+
+                // Clear any error messages
+                clearMessages();
+
+                // Remove error classes
+                urlInput.classList.remove("error");
+                inputGroup.classList.remove("error");
+
+                // Hide the result container
+                resultContainer.style.display = "none";
+
+                // Clear the result URL
+                resultUrl.textContent = "";
+
+                // Hide copy status
+                copyStatus.classList.remove("show");
+
+                // Focus back on the input
+                urlInput.focus();
+            }
+
+            // Keyboard shortcuts
+            document.addEventListener("keydown", function (e) {
+                // Escape to clear and focus input
+                if (e.key === "Escape") {
+                    urlInput.value = "";
+                    clearMessages();
+                    resultContainer.style.display = "none";
+                    urlInput.focus();
+                }
+
+                // Ctrl/Cmd+C to copy result when visible
+                if (
+                    (e.ctrlKey || e.metaKey) &&
+                    e.key === "c" &&
+                    resultContainer.style.display !== "none"
+                ) {
+                    const resultText = resultUrl.textContent;
+                    if (resultText) {
+                        e.preventDefault();
+                        copyToClipboard(resultText);
+                    }
+                }
+            });
+
+            // Auto-focus input on page load
+            document.addEventListener("DOMContentLoaded", function () {
+                urlInput.focus();
+            });
+        </script>
+
+        <footer class="footer">
+            <p id="copyright">
+                © 2025
+                <a
+                    href="https://www.linkedin.com/in/ronforresterpdx/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >Ron Forrester</a
+                >. All rights reserved.
+            </p>
+        </footer>
+
+        <script>
+            // Update copyright year dynamically
+            const currentYear = new Date().getFullYear();
+            document.getElementById("copyright").innerHTML =
+                `© ${currentYear} <a href="https://www.linkedin.com/in/ronforresterpdx/" target="_blank" rel="noopener noreferrer">Ron Forrester</a>. All rights reserved.`;
+        </script>
+    </body>
 </html>
