@@ -125,12 +125,18 @@ if [ -z "$URL" ]; then
     exit 1
 fi
 
-# Basic URL validation
+# Add https:// if no protocol is provided
 case "$URL" in
     http://*|https://*)
+        # URL already has a protocol
+        ;;
+    //*)
+        # Protocol-relative URL, prepend https:
+        URL="https:$URL"
         ;;
     *)
-        error "Invalid URL. URL must start with http:// or https://"
+        # No protocol, prepend https://
+        URL="https://$URL"
         ;;
 esac
 

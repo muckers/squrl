@@ -42,6 +42,16 @@ variable "analytics_lambda_invoke_arn" {
   type        = string
 }
 
+variable "get_stats_lambda_arn" {
+  description = "ARN of the get-stats Lambda function"
+  type        = string
+}
+
+variable "get_stats_lambda_invoke_arn" {
+  description = "Invoke ARN of the get-stats Lambda function"
+  type        = string
+}
+
 variable "stage_name" {
   description = "Name of the API Gateway stage"
   type        = string

@@ -4,6 +4,7 @@ members = [
     "lambda/create-url",
     "lambda/redirect", 
     "lambda/analytics",
+    "lambda/get-stats",
 ]
 resolver = "2"
 

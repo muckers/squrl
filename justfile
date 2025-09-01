@@ -13,6 +13,7 @@ build:
     zip -j target/lambda/create-url/bootstrap.zip target/lambda/create-url/bootstrap
     zip -j target/lambda/redirect/bootstrap.zip target/lambda/redirect/bootstrap
     zip -j target/lambda/analytics/bootstrap.zip target/lambda/analytics/bootstrap
+    zip -j target/lambda/get-stats/bootstrap.zip target/lambda/get-stats/bootstrap
 
 # Build a specific Lambda function
 build-function FUNCTION:

@@ -387,7 +387,7 @@ resource "aws_api_gateway_integration" "stats_get" {
 
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = var.analytics_lambda_invoke_arn
+  uri                     = var.get_stats_lambda_invoke_arn
 
   request_parameters = {
     "integration.request.path.short_code" = "method.request.path.short_code"
@@ -397,7 +397,7 @@ resource "aws_api_gateway_integration" "stats_get" {
 resource "aws_lambda_permission" "stats_get" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = var.analytics_lambda_arn
+  function_name = var.get_stats_lambda_arn
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_api_gateway_rest_api.squrl_api.execution_arn}/*/*"

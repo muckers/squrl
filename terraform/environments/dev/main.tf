@@ -80,6 +80,20 @@ module "analytics_lambda" {
   tags = local.common_tags
 }
 
+module "get_stats_lambda" {
+  source = "../../modules/lambda"
+
+  function_name       = "squrl-get-stats-${var.environment}"
+  lambda_zip_path     = "../../../target/lambda/get-stats/bootstrap.zip"
+  dynamodb_table_name = module.dynamodb.table_name
+  dynamodb_table_arn  = module.dynamodb.table_arn
+  memory_size         = 256
+  timeout             = 10
+  rust_log_level      = "info"
+
+  tags = local.common_tags
+}
+
 resource "aws_kinesis_stream" "analytics" {
   name             = "squrl-analytics-${var.environment}"
   shard_count      = 1
@@ -296,14 +310,14 @@ resource "aws_api_gateway_integration" "stats_get" {
 
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = module.analytics_lambda.invoke_arn
+  uri                     = module.get_stats_lambda.invoke_arn
 }
 
 # Lambda permission for stats API Gateway
 resource "aws_lambda_permission" "stats_api_gateway" {
   statement_id  = "AllowAPIGatewayInvokeStats"
   action        = "lambda:InvokeFunction"
-  function_name = module.analytics_lambda.function_name
+  function_name = module.get_stats_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.squrl.execution_arn}/*/*"
 }
