@@ -38,3 +38,8 @@ output "s3_bucket_name" {
   description = "S3 bucket name for web hosting"
   value       = module.static_hosting.bucket_name
 }
+
+output "aws_region" {
+  description = "AWS region"
+  value       = var.aws_region
+}
