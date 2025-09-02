@@ -166,38 +166,38 @@ validate-prod:
     done
     
     echo ""
-    echo "4. 🌐 Endpoint Health Validation"
-    echo "-------------------------------"
+    echo "4. 🌐 Direct API Gateway Health Validation"
+    echo "-----------------------------------------"
     
-    # Test API Gateway endpoint
+    # Test API Gateway endpoint directly
     if [ -n "$API_GATEWAY_URL" ]; then
-        echo "   Testing API Gateway health..."
+        echo "   Testing direct API Gateway health..."
         
         # Test create endpoint with a health check
         HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
-            -d '{"original_url":"https://example.com/health-check"}' \
+            -d '{"original_url":"https://example.com/health-check-direct"}' \
             "$API_GATEWAY_URL/create" 2>/dev/null || echo "000")
         
         if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-            echo "✅ API Gateway create endpoint responding: HTTP $HTTP_CODE"
+            echo "✅ Direct API Gateway create endpoint: HTTP $HTTP_CODE"
         else
-            echo "❌ API Gateway create endpoint failed: HTTP $HTTP_CODE"
+            echo "❌ Direct API Gateway create endpoint failed: HTTP $HTTP_CODE"
             VALIDATION_FAILED=true
         fi
         
-        # Test stats endpoint (currently returns 500 for non-existent code - this is a known issue)
+        # Test stats endpoint directly (currently returns 500 for non-existent code - this is a known issue)
         HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_GATEWAY_URL/stats/nonexistent" 2>/dev/null || echo "000")
         
         if [ "$HTTP_CODE" = "500" ]; then
-            echo "⚠️  API Gateway stats endpoint responding: HTTP $HTTP_CODE (should be 404 for non-existent code - known issue)"
+            echo "⚠️  Direct API Gateway stats endpoint: HTTP $HTTP_CODE (should be 404 for non-existent code - known issue)"
         elif [ "$HTTP_CODE" = "404" ]; then
-            echo "✅ API Gateway stats endpoint responding: HTTP $HTTP_CODE (correctly handling non-existent code)"
+            echo "✅ Direct API Gateway stats endpoint: HTTP $HTTP_CODE (correctly handling non-existent code)"
         elif [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ API Gateway stats endpoint responding: HTTP $HTTP_CODE"
+            echo "✅ Direct API Gateway stats endpoint: HTTP $HTTP_CODE"
         else
-            echo "❌ API Gateway stats endpoint failed: HTTP $HTTP_CODE"
+            echo "❌ Direct API Gateway stats endpoint failed: HTTP $HTTP_CODE"
             VALIDATION_FAILED=true
         fi
     else
@@ -219,15 +219,89 @@ validate-prod:
         fi
     fi
     
-    # Test production domain
-    echo "   Testing production domain (squrl.pub)..."
+    echo ""
+    echo "5. 🌍 Public Domain Validation (What Users Actually Experience)"
+    echo "-----------------------------------------------------------"
+    
+    # Test production domain root
+    echo "   Testing production domain root (https://squrl.pub)..."
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://squrl.pub" 2>/dev/null || echo "000")
     
     if [ "$HTTP_CODE" = "200" ]; then
-        echo "✅ Production domain responding: HTTP $HTTP_CODE"
+        echo "✅ Production domain root responding: HTTP $HTTP_CODE"
     else
-        echo "❌ Production domain failed: HTTP $HTTP_CODE"
+        echo "❌ Production domain root failed: HTTP $HTTP_CODE"
         VALIDATION_FAILED=true
+    fi
+    
+    # Create a test short URL first for realistic testing
+    echo "   Creating test URL for validation..."
+    TEST_RESPONSE=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d '{"original_url":"https://example.com/validation-test"}' \
+        "https://squrl.pub/create" 2>/dev/null || echo "")
+    
+    # Extract short code from response if successful
+    TEST_SHORT_CODE=""
+    if [ -n "$TEST_RESPONSE" ]; then
+        TEST_SHORT_CODE=$(echo "$TEST_RESPONSE" | sed -n 's/.*"short_code":"\([^"]*\)".*/\1/p' 2>/dev/null || echo "")
+    fi
+    
+    # Test public create endpoint
+    echo "   Testing public create endpoint (https://squrl.pub/create)..."
+    CREATE_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d '{"original_url":"https://example.com/public-validation-test"}' \
+        "https://squrl.pub/create" 2>/dev/null || echo "000")
+    
+    if [ "$CREATE_HTTP_CODE" = "200" ] || [ "$CREATE_HTTP_CODE" = "201" ]; then
+        echo "✅ Public create endpoint responding: HTTP $CREATE_HTTP_CODE"
+    else
+        echo "❌ Public create endpoint failed: HTTP $CREATE_HTTP_CODE"
+        VALIDATION_FAILED=true
+    fi
+    
+    # Test public stats endpoint with existing code
+    if [ -n "$TEST_SHORT_CODE" ] && [ "$TEST_SHORT_CODE" != "" ]; then
+        echo "   Testing public stats endpoint with existing code (https://squrl.pub/stats/$TEST_SHORT_CODE)..."
+        STATS_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://squrl.pub/stats/$TEST_SHORT_CODE" 2>/dev/null || echo "000")
+        
+        if [ "$STATS_HTTP_CODE" = "200" ]; then
+            echo "✅ Public stats endpoint with existing code: HTTP $STATS_HTTP_CODE"
+        else
+            echo "❌ Public stats endpoint with existing code failed: HTTP $STATS_HTTP_CODE"
+            VALIDATION_FAILED=true
+        fi
+    else
+        echo "⚠️  Could not create test URL, skipping stats test with existing code"
+    fi
+    
+    # Test public stats endpoint with non-existent code
+    echo "   Testing public stats endpoint with non-existent code (https://squrl.pub/stats/nonexistent)..."
+    STATS_404_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://squrl.pub/stats/nonexistent" 2>/dev/null || echo "000")
+    
+    if [ "$STATS_404_CODE" = "404" ]; then
+        echo "✅ Public stats endpoint correctly returns 404 for non-existent code: HTTP $STATS_404_CODE"
+    elif [ "$STATS_404_CODE" = "500" ]; then
+        echo "❌ Public stats endpoint returns 500 instead of 404: HTTP $STATS_404_CODE (THIS IS THE ISSUE WE'RE INVESTIGATING)"
+        VALIDATION_FAILED=true
+    else
+        echo "❌ Public stats endpoint unexpected response: HTTP $STATS_404_CODE"
+        VALIDATION_FAILED=true
+    fi
+    
+    # Test redirect functionality if we have a test code
+    if [ -n "$TEST_SHORT_CODE" ] && [ "$TEST_SHORT_CODE" != "" ]; then
+        echo "   Testing public redirect functionality (https://squrl.pub/$TEST_SHORT_CODE)..."
+        REDIRECT_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "https://squrl.pub/$TEST_SHORT_CODE" 2>/dev/null || echo "000")
+        
+        if [ "$REDIRECT_HTTP_CODE" = "200" ]; then
+            echo "✅ Public redirect functionality working: HTTP $REDIRECT_HTTP_CODE"
+        else
+            echo "❌ Public redirect functionality failed: HTTP $REDIRECT_HTTP_CODE"
+            VALIDATION_FAILED=true
+        fi
     fi
     
     echo ""

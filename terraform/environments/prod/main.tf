@@ -285,6 +285,53 @@ resource "aws_api_gateway_integration" "stats_get" {
   uri                     = module.get_stats_lambda.invoke_arn
 }
 
+# Method responses for stats endpoint (required for proper HTTP status code mapping)
+resource "aws_api_gateway_method_response" "stats_get_200" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.stats_short_code.id
+  http_method = aws_api_gateway_method.stats_get.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Cache-Control"               = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_method_response" "stats_get_404" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.stats_short_code.id
+  http_method = aws_api_gateway_method.stats_get.http_method
+  status_code = "404"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_method_response" "stats_get_500" {
+  rest_api_id = aws_api_gateway_rest_api.squrl.id
+  resource_id = aws_api_gateway_resource.stats_short_code.id
+  http_method = aws_api_gateway_method.stats_get.http_method
+  status_code = "500"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
 # Lambda permission for stats API Gateway
 resource "aws_lambda_permission" "stats_api_gateway" {
   statement_id  = "AllowAPIGatewayInvokeStats"
@@ -303,6 +350,9 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.redirect_get,
     aws_api_gateway_integration.redirect_head,
     aws_api_gateway_integration.stats_get,
+    aws_api_gateway_method_response.stats_get_200,
+    aws_api_gateway_method_response.stats_get_404,
+    aws_api_gateway_method_response.stats_get_500,
   ]
 
   rest_api_id = aws_api_gateway_rest_api.squrl.id
@@ -325,6 +375,9 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_resource.stats_short_code.id,
       aws_api_gateway_method.stats_get.id,
       aws_api_gateway_integration.stats_get.id,
+      aws_api_gateway_method_response.stats_get_200.id,
+      aws_api_gateway_method_response.stats_get_404.id,
+      aws_api_gateway_method_response.stats_get_500.id,
     ]))
   }
 
