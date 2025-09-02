@@ -25,7 +25,6 @@ struct CachedSecret {
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub dynamodb_table_name: String,
-    pub kinesis_stream_name: Option<String>,
     pub short_url_base: String,
     pub rust_log_level: String,
     // Add other sensitive configuration here as needed
@@ -197,8 +196,6 @@ impl AppConfig {
         let dynamodb_table_name = env::var("DYNAMODB_TABLE_NAME")
             .unwrap_or_else(|_| "squrl-urls".to_string());
             
-        let kinesis_stream_name = env::var("KINESIS_STREAM_NAME").ok();
-        
         let short_url_base = env::var("SHORT_URL_BASE")
             .unwrap_or_else(|_| "https://sqrl.co".to_string());
             
@@ -216,7 +213,6 @@ impl AppConfig {
 
         Ok(Self {
             dynamodb_table_name,
-            kinesis_stream_name,
             short_url_base,
             rust_log_level,
             api_keys,
@@ -230,11 +226,6 @@ impl AppConfig {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .unwrap_or_else(|| "squrl-urls".to_string());
-
-        let kinesis_stream_name = config_json
-            .get("kinesis_stream_name")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
 
         let short_url_base = config_json
             .get("short_url_base")
@@ -260,7 +251,6 @@ impl AppConfig {
 
         Ok(Self {
             dynamodb_table_name,
-            kinesis_stream_name,
             short_url_base,
             rust_log_level,
             api_keys,
@@ -306,7 +296,6 @@ mod tests {
     fn test_app_config_from_json() {
         let config_json = json!({
             "dynamodb_table_name": "json-table",
-            "kinesis_stream_name": "json-stream",
             "short_url_base": "https://json.co",
             "rust_log_level": "trace",
             "api_keys": {
@@ -318,7 +307,6 @@ mod tests {
         let config = AppConfig::from_json_config(&config_json).unwrap();
         
         assert_eq!(config.dynamodb_table_name, "json-table");
-        assert_eq!(config.kinesis_stream_name, Some("json-stream".to_string()));
         assert_eq!(config.short_url_base, "https://json.co");
         assert_eq!(config.rust_log_level, "trace");
         assert_eq!(config.get_api_key("service1"), Some("key-123"));
@@ -332,7 +320,6 @@ mod tests {
         let config = AppConfig::from_json_config(&config_json).unwrap();
         
         assert_eq!(config.dynamodb_table_name, "squrl-urls");
-        assert_eq!(config.kinesis_stream_name, None);
         assert_eq!(config.short_url_base, "https://sqrl.co");
         assert_eq!(config.rust_log_level, "info");
         assert!(!config.has_api_keys());

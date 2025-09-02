@@ -139,13 +139,3 @@ resource "aws_cloudwatch_log_group" "lambda_redirect" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "lambda_analytics" {
-  name              = "/aws/lambda/squrl-analytics-${var.environment}"
-  retention_in_days = 3
-  
-  tags = {
-    Environment = var.environment
-    Service     = "squrl"
-    Privacy     = "compliant"
-  }
-}

@@ -10,7 +10,6 @@ tokio = { workspace = true }
 
 aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
-aws-sdk-kinesis = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -32,7 +32,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_model.error_response.id,
       var.create_url_lambda_invoke_arn,
       var.redirect_lambda_invoke_arn,
-      var.analytics_lambda_invoke_arn,
+      var.get_stats_lambda_invoke_arn,
     ]))
   }
 

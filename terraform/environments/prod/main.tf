@@ -53,35 +53,18 @@ module "redirect_lambda" {
   lambda_zip_path     = "../../../target/lambda/redirect/bootstrap.zip"
   dynamodb_table_name = module.dynamodb.table_name
   dynamodb_table_arn  = module.dynamodb.table_arn
-  kinesis_stream_arn  = aws_kinesis_stream.analytics.arn
   memory_size         = 128
   timeout             = 5
   rust_log_level      = "warn"
   log_retention_days  = 3  # Privacy compliance: minimal retention
 
   additional_env_vars = {
-    KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
+    SHORT_URL_BASE = "https://squrl.pub"
   }
 
   tags = local.common_tags
 }
 
-module "analytics_lambda" {
-  source = "../../modules/lambda"
-
-  function_name            = "squrl-analytics-${var.environment}"
-  lambda_zip_path          = "../../../target/lambda/analytics/bootstrap.zip"
-  dynamodb_table_name      = module.dynamodb.table_name
-  dynamodb_table_arn       = module.dynamodb.table_arn
-  kinesis_stream_arn       = aws_kinesis_stream.analytics.arn
-  kinesis_read_permissions = true
-  memory_size              = 512
-  timeout                  = 30
-  rust_log_level           = "warn"
-  log_retention_days       = 3  # Privacy compliance: minimal retention
-
-  tags = local.common_tags
-}
 
 module "get_stats_lambda" {
   source = "../../modules/lambda"
@@ -98,22 +81,7 @@ module "get_stats_lambda" {
   tags = local.common_tags
 }
 
-resource "aws_kinesis_stream" "analytics" {
-  name             = "squrl-analytics-${var.environment}"
-  shard_count      = 1
-  retention_period = 24
 
-  encryption_type = "KMS"
-  kms_key_id      = "alias/aws/kinesis"
-
-  tags = local.common_tags
-}
-
-resource "aws_lambda_event_source_mapping" "analytics_kinesis" {
-  event_source_arn  = aws_kinesis_stream.analytics.arn
-  function_name     = module.analytics_lambda.function_name
-  starting_position = "LATEST"
-}
 
 # Simple API Gateway setup
 resource "aws_api_gateway_rest_api" "squrl" {

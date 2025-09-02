@@ -18,11 +18,6 @@ variable "dynamodb_table_arn" {
   type        = string
 }
 
-variable "kinesis_stream_arn" {
-  description = "ARN of the Kinesis stream"
-  type        = string
-  default     = ""
-}
 
 variable "memory_size" {
   description = "Memory size for the Lambda function"
@@ -60,8 +55,3 @@ variable "tags" {
   default     = {}
 }
 
-variable "kinesis_read_permissions" {
-  description = "Whether to grant Kinesis read permissions to the Lambda function"
-  type        = bool
-  default     = false
-}

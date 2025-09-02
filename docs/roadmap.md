@@ -23,7 +23,7 @@
 - Create Rust Lambda functions using lambda_runtime
 - `create-url` function for shortening URLs
 - `redirect` function for URL lookups and redirects
-- `analytics` function for async click tracking
+- Direct click tracking in DynamoDB via redirect function
 - Implement AWS SDK for Rust (DynamoDB client)
 
 ### 1.2 DynamoDB Schema Design
@@ -37,7 +37,7 @@
 - URL validation and sanitization
 - Custom short codes support
 - Collision-resistant ID generation (Snowflake/KSUID)
-- Async click event streaming to Kinesis
+- Direct click count updates in DynamoDB
 
 ## Phase 2: ✅ API & Edge Layer (COMPLETED)
 **Goal**: API Gateway setup and edge optimization
@@ -150,9 +150,9 @@
 ## Phase 6: Analytics & Intelligence (Weeks 11-12)
 **Goal**: Real-time analytics and premium features
 
-### 6.1 Analytics Pipeline
-- Kinesis Data Streams for click events
-- Kinesis Analytics for real-time metrics
+### 6.1 Enhanced Analytics
+- Advanced click statistics and reporting
+- Click patterns and trends analysis
 - S3 data lake with Athena queries
 - QuickSight dashboards
 - EventBridge for webhook notifications
@@ -204,7 +204,7 @@
 ### Data Storage
 - **Primary**: DynamoDB with Global Tables
 - **Cache**: DAX for microsecond reads
-- **Analytics**: S3 + Athena
+- **Analytics**: DynamoDB + CloudWatch metrics
 - **Search**: OpenSearch Serverless (if needed)
 
 ### Deployment Strategy

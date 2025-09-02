@@ -4,7 +4,7 @@ services:
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=dynamodb,kinesis,cloudwatch
+      - SERVICES=dynamodb,cloudwatch
       - DEBUG=1
     volumes:
       - "./localstack-data:/var/lib/localstack"

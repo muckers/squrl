@@ -19,7 +19,7 @@ output "lambda_function_names" {
   value = {
     create_url = module.create_url_lambda.function_name
     redirect   = module.redirect_lambda.function_name
-    analytics  = module.analytics_lambda.function_name
+    get_stats  = module.get_stats_lambda.function_name
   }
 }
 
@@ -33,10 +33,6 @@ output "cloudfront_distribution_id" {
   value       = module.cloudfront.distribution_id
 }
 
-output "kinesis_stream_name" {
-  description = "Kinesis stream name"
-  value       = aws_kinesis_stream.analytics.name
-}
 
 output "s3_bucket_name" {
   description = "S3 bucket name for web hosting"

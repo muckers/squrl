@@ -16,8 +16,8 @@
 #   create_url_lambda_invoke_arn  = module.create_url_lambda.invoke_arn
 #   redirect_lambda_arn           = module.redirect_lambda.function_arn  
 #   redirect_lambda_invoke_arn    = module.redirect_lambda.invoke_arn
-#   analytics_lambda_arn          = module.analytics_lambda.function_arn
-#   analytics_lambda_invoke_arn   = module.analytics_lambda.invoke_arn
+#   get_stats_lambda_arn          = module.get_stats_lambda.function_arn
+#   get_stats_lambda_invoke_arn   = module.get_stats_lambda.invoke_arn
 # 
 #   # Rate limiting configuration (as per milestone-02.md specs)
 #   throttle_burst_limit = 200  # 200 req/sec burst

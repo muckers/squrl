@@ -32,15 +32,7 @@ variable "redirect_lambda_invoke_arn" {
   type        = string
 }
 
-variable "analytics_lambda_arn" {
-  description = "ARN of the analytics Lambda function"
-  type        = string
-}
 
-variable "analytics_lambda_invoke_arn" {
-  description = "Invoke ARN of the analytics Lambda function"
-  type        = string
-}
 
 variable "get_stats_lambda_arn" {
   description = "ARN of the get-stats Lambda function"

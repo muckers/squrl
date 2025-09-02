@@ -1,15 +1,15 @@
 use aws_config::BehaviorVersion;
-use aws_lambda_events::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
-use aws_lambda_events::http::HeaderMap;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 use serde::Serialize;
+use serde_json::{Value, json};
 use std::env;
 use tracing::{error, info, instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
+use squrl_shared::models::{ApiGatewayProxyEvent, ApiGatewayProxyResponse, ErrorResponse, is_api_gateway_event};
 
 #[derive(Clone)]
 struct AppState {
@@ -63,88 +63,106 @@ async fn main() -> Result<(), Error> {
 
 #[instrument(skip(app_state), fields(request_id = %event.context.request_id))]
 async fn function_handler(
-    event: LambdaEvent<ApiGatewayProxyRequest>,
+    event: LambdaEvent<Value>,
     app_state: AppState,
-) -> Result<ApiGatewayProxyResponse, Error> {
+) -> Result<Value, Error> {
     info!("Handling stats request");
 
-    // Extract short_code from path parameters
-    let short_code = event
-        .payload
-        .path_parameters
-        .get("short_code")
-        .ok_or_else(|| {
-            error!("Missing short_code in path parameters");
-            UrlShortenerError::ValidationError("Missing short_code parameter".to_string())
-        })?;
+    let is_api_gateway = is_api_gateway_event(&event.payload);
 
-    info!("Fetching stats for short_code: {}", short_code);
-
-    // Get the URL item from DynamoDB
-    match app_state.db_client.get_url(short_code).await {
-        Ok(Some(url_item)) => {
-            info!("Found URL item for short_code: {}", short_code);
-            
-            let stats_response = StatsResponse {
-                short_code: url_item.short_code.clone(),
-                original_url: url_item.original_url.clone(),
-                click_count: url_item.click_count,
-                created_at: url_item.created_at.clone(),
-                expires_at: url_item.expires_at.clone(),
-            };
-
-            let response_body = serde_json::to_string(&stats_response)?;
-
-            Ok(ApiGatewayProxyResponse {
-                status_code: 200,
-                headers: create_cors_headers(),
-                body: Some(aws_lambda_events::encodings::Body::Text(response_body)),
-                ..Default::default()
-            })
+    match handler_impl(event.payload, &app_state).await {
+        Ok(response) => {
+            if is_api_gateway {
+                Ok(create_api_gateway_stats_response(response))
+            } else {
+                Ok(response)
+            }
         }
-        Ok(None) => {
-            info!("URL not found for short_code: {}", short_code);
-            
-            let error_response = serde_json::json!({
-                "error": "URL not found",
-                "short_code": short_code
-            });
-
-            Ok(ApiGatewayProxyResponse {
-                status_code: 404,
-                headers: create_cors_headers(),
-                body: Some(aws_lambda_events::encodings::Body::Text(error_response.to_string())),
-                ..Default::default()
-            })
-        }
-        Err(e) => {
-            error!("Error fetching URL stats: {}", e);
-            
-            let error_response = serde_json::json!({
-                "error": "Internal server error"
-            });
-
-            Ok(ApiGatewayProxyResponse {
-                status_code: 500,
-                headers: create_cors_headers(),
-                body: Some(aws_lambda_events::encodings::Body::Text(error_response.to_string())),
-                ..Default::default()
-            })
+        Err(err) => {
+            error!("Function error: {}", err);
+            Ok(create_error_response(&err, is_api_gateway))
         }
     }
 }
 
-fn create_cors_headers() -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.insert("Content-Type", "application/json".parse().unwrap());
-    headers.insert("Access-Control-Allow-Origin", "*".parse().unwrap());
-    headers.insert(
-        "Access-Control-Allow-Methods",
-        "GET, OPTIONS".parse().unwrap(),
-    );
-    headers.insert(
-        "Access-Control-Allow-Headers",
-        "Content-Type".parse().unwrap(),
-    );
-    headers
+async fn handler_impl(payload: Value, app_state: &AppState) -> Result<Value, UrlShortenerError> {
+    let short_code = if is_api_gateway_event(&payload) {
+        // Parse API Gateway event
+        let api_event: ApiGatewayProxyEvent = serde_json::from_value(payload).map_err(|e| {
+            UrlShortenerError::ValidationError(format!("Invalid API Gateway event: {}", e))
+        })?;
+
+        // Extract short_code from path parameters
+        api_event
+            .path_parameters
+            .as_ref()
+            .and_then(|params| params.get("short_code"))
+            .ok_or_else(|| {
+                UrlShortenerError::ValidationError(
+                    "Missing short_code in path parameters".to_string(),
+                )
+            })?
+            .clone()
+    } else {
+        // Direct Lambda invocation - expect short_code in payload
+        payload
+            .get("short_code")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                UrlShortenerError::ValidationError("Missing short_code in payload".to_string())
+            })?
+            .to_string()
+    };
+
+    info!("Fetching stats for short_code: {}", short_code);
+
+    // Get the URL item from DynamoDB
+    let url_item = app_state
+        .db_client
+        .get_url(&short_code)
+        .await?
+        .ok_or_else(|| UrlShortenerError::ShortCodeNotFound(short_code.clone()))?;
+
+    info!("Found URL item for short_code: {}", short_code);
+
+    let stats_response = StatsResponse {
+        short_code: url_item.short_code.clone(),
+        original_url: url_item.original_url.clone(),
+        click_count: url_item.click_count,
+        created_at: url_item.created_at.clone(),
+        expires_at: url_item.expires_at,
+    };
+
+    Ok(serde_json::to_value(stats_response)?)
+}
+
+fn create_api_gateway_stats_response(response_data: Value) -> Value {
+    let api_response = ApiGatewayProxyResponse::new(200, response_data.to_string());
+    serde_json::to_value(api_response).unwrap_or_else(|_| json!({"statusCode": 500, "body": "{}"}))
+}
+
+fn create_error_response(error: &UrlShortenerError, is_api_gateway: bool) -> Value {
+    let (status_code, error_message) = match error {
+        UrlShortenerError::ShortCodeNotFound(code) => {
+            (404, format!("URL not found for short code: {}", code))
+        }
+        UrlShortenerError::ValidationError(msg) => (400, msg.clone()),
+        _ => (500, "Internal server error".to_string()),
+    };
+
+    if is_api_gateway {
+        let error_response = ErrorResponse {
+            error: "error".to_string(),
+            message: error_message,
+            details: None,
+        };
+        let error_json = serde_json::to_string(&error_response).unwrap_or_else(|_| "{}".to_string());
+        let api_response = ApiGatewayProxyResponse::new(status_code, error_json);
+        serde_json::to_value(api_response).unwrap_or_else(|_| json!({"statusCode": 500, "body": "{}"}))
+    } else {
+        json!({
+            "error": "error",
+            "message": error_message
+        })
+    }
 }

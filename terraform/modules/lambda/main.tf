@@ -66,49 +66,7 @@ resource "aws_iam_role_policy" "dynamodb_access" {
   })
 }
 
-resource "aws_iam_role_policy" "kinesis_access" {
-  count = var.kinesis_stream_arn != "" ? 1 : 0
-  name  = "${var.function_name}_kinesis"
-  role  = aws_iam_role.lambda_exec.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "kinesis:PutRecord",
-          "kinesis:PutRecords"
-        ]
-        Resource = var.kinesis_stream_arn
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "kinesis_read_access" {
-  count = var.kinesis_read_permissions && var.kinesis_stream_arn != "" ? 1 : 0
-  name  = "${var.function_name}_kinesis_read"
-  role  = aws_iam_role.lambda_exec.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "kinesis:DescribeStream",
-          "kinesis:DescribeStreamSummary",
-          "kinesis:GetRecords",
-          "kinesis:GetShardIterator",
-          "kinesis:ListShards",
-          "kinesis:ListStreams"
-        ]
-        Resource = var.kinesis_stream_arn
-      }
-    ]
-  })
-}
 
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${var.function_name}"

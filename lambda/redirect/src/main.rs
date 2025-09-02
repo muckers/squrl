@@ -1,7 +1,5 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
-use aws_sdk_kinesis::Client as KinesisClient;
-use chrono::Utc;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
 //use lambda_web::{is_running_on_lambda, launch, IntoResponse, RequestExt};
 use serde_json::{Value, json};
@@ -13,15 +11,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
 use squrl_shared::models::{
-    AnalyticsEvent, ApiGatewayProxyEvent, ApiGatewayProxyResponse, ErrorResponse, RedirectRequest,
+    ApiGatewayProxyEvent, ApiGatewayProxyResponse, ErrorResponse, RedirectRequest,
     RedirectResponse, is_api_gateway_event,
 };
 
 #[derive(Clone)]
 struct AppState {
     db_client: UrlDynamoDbClient,
-    kinesis_client: KinesisClient,
-    kinesis_stream_name: String,
 }
 
 fn init_tracing() {
@@ -49,25 +45,11 @@ async fn main() -> Result<(), Error> {
         DynamoDbClient::new(&config)
     };
 
-    let kinesis_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
-        // Local development with LocalStack
-        let kinesis_config = aws_sdk_kinesis::config::Builder::from(&config)
-            .endpoint_url(endpoint_url)
-            .build();
-        KinesisClient::from_conf(kinesis_config)
-    } else {
-        KinesisClient::new(&config)
-    };
-
     let table_name = env::var("DYNAMODB_TABLE_NAME").unwrap_or_else(|_| "squrl-urls".to_string());
-    let kinesis_stream_name =
-        env::var("KINESIS_STREAM_NAME").unwrap_or_else(|_| "squrl-analytics".to_string());
 
     let db_client = UrlDynamoDbClient::new(dynamodb_client, table_name);
     let app_state = AppState {
         db_client,
-        kinesis_client,
-        kinesis_stream_name,
     };
 
     run(service_fn(move |event| {
@@ -134,25 +116,15 @@ async fn handler_impl(payload: Value, app_state: &AppState) -> Result<Value, Url
         .await?
         .ok_or_else(|| UrlShortenerError::ShortCodeNotFound(short_code.clone()))?;
 
-    // For HEAD requests, we skip analytics and click count increments
+    // For HEAD requests, we skip click count increments
     // as they're typically used just to check if a URL exists
     if http_method != "HEAD" {
         // Increment click count asynchronously
         if let Err(e) = app_state.db_client.increment_click_count(&short_code).await {
             warn!("Failed to increment click count: {}", e);
         }
-
-        // Send analytics event to Kinesis
-        let analytics_event = AnalyticsEvent {
-            short_code: short_code.clone(),
-            timestamp: Utc::now().to_rfc3339(),
-        };
-
-        if let Err(e) = send_analytics_event(app_state, &analytics_event).await {
-            warn!("Failed to send analytics event: {}", e);
-        }
     } else {
-        info!("HEAD request - skipping analytics and click count");
+        info!("HEAD request - skipping click count");
     }
 
     let response = RedirectResponse {
@@ -163,27 +135,6 @@ async fn handler_impl(payload: Value, app_state: &AppState) -> Result<Value, Url
     Ok(serde_json::to_value(response)?)
 }
 
-#[instrument(skip(app_state, event))]
-async fn send_analytics_event(
-    app_state: &AppState,
-    event: &AnalyticsEvent,
-) -> Result<(), UrlShortenerError> {
-    let event_data =
-        serde_json::to_string(event).map_err(|e| UrlShortenerError::InternalError(e.into()))?;
-
-    app_state
-        .kinesis_client
-        .put_record()
-        .stream_name(&app_state.kinesis_stream_name)
-        .partition_key(&event.short_code)
-        .data(event_data.into_bytes().into())
-        .send()
-        .await
-        .map_err(|e| UrlShortenerError::InternalError(e.into()))?;
-
-    info!("Analytics event sent successfully");
-    Ok(())
-}
 
 fn create_api_gateway_redirect_response(response_data: Value) -> Value {
     // Extract the original_url from the response data

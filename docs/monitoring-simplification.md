@@ -15,12 +15,11 @@ The current monitoring setup is massively over-engineered with:
   - Cost tracking dashboard with anomaly detection
   - System health dashboard with granular metrics
 
-- **25+ CloudWatch Alarms**
+- **20+ CloudWatch Alarms**
   - API Gateway: request rates, error rates, latency
   - Lambda functions: errors, throttles, duration, concurrent executions
   - DynamoDB: throttling, user errors, system errors, consumed capacity
   - CloudFront: error rates, origin latency, cache hit ratio
-  - Kinesis: iterator age, record processing
   - WAF: blocked requests, rate limiting
   - Abuse detection: pattern matching, threshold violations
 
@@ -46,7 +45,7 @@ These elements are critical for maintaining user anonymity and must be preserved
 1. **IP Anonymization**: Hash IP addresses before any storage or processing
 2. **No PII Collection**: No user-identifiable information in logs or metrics
 3. **Minimal Log Retention**: 1-3 days maximum (currently 3 days prod, 7 days dev)
-4. **Anonymous Analytics**: AnalyticsEvent structure with only hashed/anonymous data
+4. **Anonymous Click Tracking**: Direct DynamoDB updates with only click counts and timestamps
 5. **WAF PII Redaction**: If present, maintain redaction rules for query parameters
 
 ## Simplification Strategy
@@ -178,18 +177,18 @@ resource "aws_cloudwatch_dashboard" "health" {
    - Remove metric math expressions
    - Remove composite alarms
 
-### Phase 5: Simplify Kinesis Analytics
+### Phase 5: Simplify Click Tracking
 
 **Keep:**
-- Basic click counting
-- IP anonymization/hashing
-- Anonymous event structure
+- Basic click counting directly in DynamoDB
+- No PII collection in click tracking
+- Simple increment operations
 
 **Remove:**
-- Complex analytics processing
+- Complex event streaming
 - Pattern detection
 - Aggregation windows
-- Custom analytics Lambda functions beyond basic processing
+- Separate analytics infrastructure
 
 ## Implementation Steps
 
@@ -266,7 +265,7 @@ After implementation, verify that these privacy features remain intact:
 - [ ] IP addresses are hashed before storage
 - [ ] No PII appears in CloudWatch Logs
 - [ ] Log retention is 3 days or less
-- [ ] Analytics events contain only anonymous data
+- [ ] Click tracking contains only anonymous data (short_code + count)
 - [ ] WAF logs (if any) redact sensitive parameters
 - [ ] No user-identifiable information in metrics
 - [ ] No correlation possible between requests
@@ -307,7 +306,7 @@ The simplification will be considered successful when:
 ### Monitoring Module Files
 - `terraform/modules/monitoring/abuse_detection.tf`
 - `terraform/modules/monitoring/abuse_lambda.tf`
-- `terraform/modules/monitoring/analytics_dashboard.tf`
+- `terraform/modules/monitoring/click_tracking_dashboard.tf`
 - `terraform/modules/monitoring/api_dashboard.tf`
 - `terraform/modules/monitoring/cloudfront_monitoring.tf`
 - `terraform/modules/monitoring/cost_dashboard.tf`

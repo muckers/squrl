@@ -10,11 +10,11 @@
 
 1. **✅ Lambda Functions - PII Removal Complete**
    - **redirect/src/main.rs**: Removed client_ip, user_agent, referer extraction
-   - **analytics/src/main.rs**: Now processes only anonymous events (short_code + timestamp)
+   - **redirect/src/main.rs**: Now handles click tracking directly via DynamoDB updates
    - **create-url/src/main.rs**: Maintains creator_ip as None, no PII collection
 
 2. **✅ Shared Models - Fully Anonymized**
-   - **shared/src/models.rs**: AnalyticsEvent now contains only `short_code` and `timestamp`
+   - **shared/src/models.rs**: Simplified models with only necessary URL and click tracking fields
    - Removed all PII fields: client_ip, user_agent, referer, country, city
 
 3. **✅ Infrastructure - Privacy-Compliant Configuration**
@@ -22,9 +22,9 @@
    - **CloudFront/WAF**: Reduced WAF log retention to 1 day minimum
    - **Monitoring**: Implemented privacy-compliant anonymous analytics system
 
-4. **✅ Anonymous Analytics System**
-   - New privacy-compliant analytics processor Lambda functions
-   - Anonymous pattern analysis without PII collection
+4. **✅ Anonymous Click Tracking System**
+   - Direct click count updates in DynamoDB via redirect function
+   - Anonymous click statistics without PII collection
    - CloudWatch dashboards with aggregate-only metrics
    - No individual user tracking capabilities
 
@@ -91,9 +91,9 @@
 - No need to store IPs in logs or databases
 - **Verified**: Rate limiting functions perfectly in production
 
-### ✅ Anonymous Analytics Implementation - ACTIVE
-- Only `short_code` and `timestamp` are collected in AnalyticsEvent
-- Kinesis stream processes anonymous events only
+### ✅ Anonymous Click Tracking Implementation - ACTIVE
+- Only `short_code` and click count are tracked in DynamoDB
+- Direct DynamoDB updates via redirect function only
 - CloudWatch dashboards show aggregate metrics without PII
 - Privacy-compliant monitoring system is operational
 
@@ -101,11 +101,11 @@
 
 **Core Lambda Functions:**
 1. ✅ `lambda/redirect/src/main.rs` - PII removal complete
-2. ✅ `lambda/analytics/src/main.rs` - Anonymous processing only
+2. ✅ Click tracking integrated into redirect function
 3. ✅ `lambda/create-url/src/main.rs` - No PII collection
 
 **Data Models:**
-4. ✅ `shared/src/models.rs` - Anonymized AnalyticsEvent structure
+4. ✅ `shared/src/models.rs` - Simplified URL models with click tracking
 
 **Infrastructure:**
 5. ✅ `terraform/modules/api_gateway/variables.tf` - Reduced log retention
@@ -116,13 +116,13 @@
 
 1. ✅ **Service Functionality**: Both create and redirect services working perfectly
 2. ✅ **Rate Limiting**: WAF continues to function without PII logging
-3. ✅ **Analytics Pipeline**: Anonymous events processed successfully
+3. ✅ **Click Tracking**: Anonymous click counts updated successfully
 4. ✅ **Production Deployment**: All systems operational with privacy changes
 
 ## 🛡️ Privacy Principles - IMPLEMENTED
 
-- ✅ **Data Minimization**: Only short_code and timestamp collected
-- ✅ **Purpose Limitation**: Data used only for anonymous analytics
+- ✅ **Data Minimization**: Only short_code and click count tracked
+- ✅ **Purpose Limitation**: Data used only for anonymous click statistics
 - ✅ **Storage Limitation**: Minimal retention periods (1-3 days)
 - ✅ **Anonymization**: Complete removal of all PII from entire system
 - 🔄 **Transparency**: Privacy policy endpoint recommended for future
@@ -136,10 +136,10 @@
 
 ### Code Review Guidelines
 - Always verify that new Lambda functions don't extract PII from API Gateway events
-- Ensure any new AnalyticsEvent fields are non-identifiable
+- Ensure click tracking remains anonymous and contains no identifiable data
 - Check that new CloudWatch log statements don't contain request headers or user data
 
 ### Monitoring Privacy Compliance
-- Watch for unusual patterns in anonymous analytics that might indicate data leakage
+- Watch for unusual patterns in anonymous click tracking that might indicate data leakage
 - Monitor log group sizes to ensure retention policies are being enforced
 - Verify WAF and CloudFront logs remain at minimal retention settings

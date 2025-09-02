@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a URL shortener prototype written in Rust with a serverless architecture. The project includes:
 - A shared library (`shared/`) with common models and utilities
-- AWS Lambda functions (`lambda/`) for create-url, redirect, and analytics operations
+- AWS Lambda functions (`lambda/`) for create-url and redirect operations
 - Terraform infrastructure configuration (`terraform/`) for AWS deployment
 - AWS CloudFormation template (`cf.yaml`) as an alternative deployment option
 - Architectural suggestions for scaling in `high-scale-suggestions.md`
@@ -23,8 +23,7 @@ This is a URL shortener prototype written in Rust with a serverless architecture
 
 2. **Lambda Functions** (`lambda/`):
    - **create-url**: Creates shortened URLs and stores them in DynamoDB
-   - **redirect**: Handles URL redirects and sends analytics events to Kinesis
-   - **analytics**: Processes analytics events from Kinesis stream
+   - **redirect**: Handles URL redirects and updates click counts in DynamoDB
 
 3. **Database Schema**: DynamoDB table with:
    - `short_code`: Partition key for fast lookups
@@ -34,7 +33,6 @@ This is a URL shortener prototype written in Rust with a serverless architecture
 4. **AWS Infrastructure** (managed via Terraform):
    - DynamoDB table for URL storage
    - Lambda functions for URL operations
-   - Kinesis stream for analytics data
    - API Gateway for HTTP endpoints
    - IAM roles and policies
 
@@ -50,7 +48,6 @@ just build
 # Build a specific Lambda function
 just build-function create-url
 just build-function redirect
-just build-function analytics
 
 # Check build status and artifacts
 just status
@@ -78,8 +75,7 @@ just local-infra
 
 # Run Lambda functions locally (in separate terminals)
 just run-local-create-url    # Port 9001
-just run-local-redirect      # Port 9002  
-just run-local-analytics     # Port 9003
+just run-local-redirect      # Port 9002
 ```
 
 ### Deployment
@@ -102,7 +98,7 @@ just destroy-dev
 
 - **ID Generation**: Uses nanoid for collision-resistant short codes
 - **Deduplication**: Returns existing short code if URL already exists (via GSI on original_url)
-- **Analytics Pipeline**: Events flow from redirect Lambda → Kinesis → analytics Lambda
+- **Click Tracking**: Direct updates to DynamoDB click_count field on redirect
 - **Error Handling**: Custom error types with proper HTTP status codes
 - **Observability**: Structured logging with tracing, CloudWatch integration
 - **Runtime**: Uses `provided.al2` runtime with cargo-lambda for optimal performance

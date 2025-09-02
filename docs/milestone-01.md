@@ -13,12 +13,13 @@ This milestone focuses on migrating the existing SQLite-based URL shortener to a
 
 ### Target Serverless Architecture
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   create-url    │    │    redirect     │    │   analytics     │
-│   Lambda        │    │    Lambda       │    │    Lambda       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                       │                       │
-        └───────────────────────┼───────────────────────┘
+┌─────────────────┐    ┌─────────────────┐
+│   create-url    │    │    redirect     │
+│   Lambda        │    │   Lambda +      │
+│                 │    │   Click Track   │
+└─────────────────┘    └─────────────────┘
+        │                       │
+        └───────────────────────┘
                                │
                     ┌─────────────────┐
                     │   DynamoDB      │
@@ -74,7 +75,7 @@ RUST_LOG: "info"
 
 ### 1.2 redirect Function
 
-**Purpose**: Lookup URLs and perform redirects with analytics tracking
+**Purpose**: Lookup URLs and perform redirects with click tracking
 
 **Runtime**: `provided.al2` (Custom Rust runtime)
 
@@ -100,30 +101,17 @@ RUST_LOG: "info"
 }
 ```
 
-### 1.3 analytics Function
+### 1.3 Click Tracking Integration
 
-**Purpose**: Asynchronous click tracking and analytics processing
+**Purpose**: Direct click count updates in DynamoDB via redirect function
 
-**Runtime**: `provided.al2` (Custom Rust runtime)
+**Implementation**: Integrated with redirect Lambda function
 
-**Memory**: 512MB
+**Method**: Atomic increment operations on DynamoDB click_count field
 
-**Timeout**: 30 seconds
+**No PII**: Only anonymous click counts tracked, no IP addresses or user data
 
-**Trigger**: DynamoDB Streams or Kinesis Data Streams
-
-**Input Format**:
-```json
-{
-  "short_code": "b3xK9mP",
-  "timestamp": "2025-08-23T10:30:00Z",
-  "client_ip": "192.168.1.1",
-  "user_agent": "Mozilla/5.0...",
-  "referer": "https://social-media.com",
-  "country": "US",
-  "city": "San Francisco"
-}
-```
+**Privacy Compliant**: Zero personal data collection
 
 ## 2. DynamoDB Schema Design
 
@@ -167,25 +155,14 @@ TimeToLiveSpecification: {
 }
 ```
 
-### 2.2 Analytics Table: `squrl-analytics` (Optional for Phase 1)
+### 2.2 Click Tracking (Integrated in URLs Table)
 
-**Primary Key**:
-- Partition Key: `short_code` (String)
-- Sort Key: `timestamp` (String)
-
-**Attributes**:
-```rust
-{
-  "short_code": String,
-  "timestamp": String,       // ISO 8601 with microseconds
-  "client_ip": String,
-  "user_agent": String,
-  "referer": String,
-  "country": String,
-  "region": String,
-  "city": String
-}
-```
+Click tracking is now integrated directly into the main `squrl-urls` table:
+- `click_count` field stores total clicks per short code
+- Atomic increment operations ensure consistency
+- No separate analytics table needed
+- No PII collection - only anonymous click counts
+- Privacy-compliant design with zero user data storage
 
 ## 3. Rust Dependencies and Crates
 
@@ -201,7 +178,7 @@ tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 # AWS SDK
 aws-config = "1.0"
 aws-sdk-dynamodb = "1.0"
-aws-sdk-kinesis = "1.0"  # For analytics events
+# Click tracking handled directly in DynamoDB via redirect function
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -460,35 +437,9 @@ module "redirect_lambda" {
   tags = local.common_tags
 }
 
-module "analytics_lambda" {
-  source = "../../modules/lambda"
-  
-  function_name       = "squrl-analytics-${var.environment}"
-  lambda_zip_path     = "../../../target/lambda/analytics/bootstrap.zip"
-  dynamodb_table_name = module.dynamodb.table_name
-  dynamodb_table_arn  = module.dynamodb.table_arn
-  memory_size         = 128
-  timeout             = 5
-  rust_log_level      = "info"
-  environment         = var.environment
-  
-  additional_env_vars = {
-    KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
-  }
-  
-  tags = local.common_tags
-}
-
-resource "aws_kinesis_stream" "analytics" {
-  name             = "squrl-analytics-${var.environment}"
-  shard_count      = 1
-  retention_period = 24
-  
-  encryption_type = "KMS"
-  kms_key_id      = "alias/aws/kinesis"
-  
-  tags = local.common_tags
-}
+# Click tracking is now integrated directly into the redirect Lambda function
+# No separate analytics Lambda or Kinesis stream needed
+# This simplifies the architecture and reduces operational complexity
 
 locals {
   common_tags = {
@@ -628,15 +579,15 @@ jobs:
 - [ ] Implement redirect Lambda function handler
 - [ ] Add DynamoDB item lookup with error handling
 - [ ] Implement click count atomic increment
-- [ ] Add basic analytics event emission to Kinesis
+- [ ] Add basic click count increments to DynamoDB
 - [ ] Handle edge cases (expired URLs, missing codes)
 
-#### Day 11-12: analytics Lambda
-- [ ] Implement analytics Lambda function (basic version)
-- [ ] Process DynamoDB stream events
-- [ ] Extract user agent and IP geolocation data
-- [ ] Store analytics data in separate table/stream
-- [ ] Add batching for high-throughput scenarios
+#### Day 11-12: Click Tracking Integration
+- [ ] Implement direct click count updates in redirect function
+- [ ] Update DynamoDB click_count field on each redirect
+- [ ] Add privacy-compliant click tracking (no PII)
+- [ ] Test click count accuracy and performance
+- [ ] Add atomic increment operations for consistency
 
 #### Day 13-14: Integration and Testing
 - [ ] Deploy all functions to AWS development environment
@@ -846,7 +797,7 @@ services:
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=dynamodb,kinesis,cloudwatch
+      - SERVICES=dynamodb,cloudwatch
       - DEBUG=1
       - DATA_DIR=/tmp/localstack/data
     volumes:
@@ -923,7 +874,7 @@ mod integration_tests {
     async fn test_end_to_end_flow() {
         // 1. Create a short URL
         // 2. Verify it can be retrieved
-        // 3. Verify analytics are recorded
+        // 3. Verify click counts are updated
         // 4. Test expiration
     }
 
@@ -1016,19 +967,19 @@ scenarios:
 - Write comprehensive unit tests
 - Deploy to development environment
 
-### Week 2: Redirect and Analytics
+### Week 2: Redirect and Click Tracking
 
 **Days 8-10: redirect Lambda**
 - Implement redirect Lambda handler
 - Add URL lookup and caching logic
-- Implement analytics event emission
+- Implement direct click count updates
 - Handle edge cases and error conditions
 - Performance optimization
 
-**Days 11-12: analytics Lambda**
-- Implement basic analytics processing
-- Set up DynamoDB Streams integration
-- Add user agent and geolocation extraction
+**Days 11-12: Click Tracking Integration**
+- Implement privacy-compliant click tracking
+- Add atomic increment operations for click_count field
+- Test click tracking accuracy and performance
 - Implement batching for efficiency
 
 **Days 13-14: Integration and Testing**
@@ -1044,7 +995,7 @@ scenarios:
 - **Function Performance**:
   - create-url: P95 < 100ms, P99 < 200ms
   - redirect: P95 < 50ms, P99 < 100ms
-  - analytics: P95 < 500ms, P99 < 1s
+  - click tracking: Minimal latency impact (< 10ms additional)
 
 - **Database Performance**:
   - DynamoDB queries: P95 < 10ms
@@ -1087,7 +1038,7 @@ scenarios:
 
 ### 13.2 Timeline Risks
 - **Learning Curve**: Allocated extra time for AWS SDK integration
-- **Testing Complexity**: Prioritize core functionality, defer advanced analytics
+- **Testing Complexity**: Prioritize core functionality, implement simple click tracking
 
 ## 14. Next Steps (Phase 2 Preview)
 After Phase 1 completion, Phase 2 will focus on:

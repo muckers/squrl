@@ -47,29 +47,27 @@ sqURL is a modern URL shortener service designed with privacy, performance, and 
                        ┌─────────────────────────────────────────┐
                        │          Lambda Functions               │
                        ├─────────────────────────────────────────┤
-                       │  create-url  │  redirect  │  analytics  │
+                       │    create-url    │     redirect        │
                        └─────────────────────────────────────────┘
-                                          │         │
-                                          ▼         ▼
+                                          │
+                                          ▼
                        ┌─────────────────────────────────────────┐
-                       │              DynamoDB               │   │
-                       │                                     │ K │
-                       │  • URLs Table (short_code PK)       │ i │
-                       │  • GSI on original_url              │ n │
-                       │  • TTL for expiration               │ e │
-                       │                                     │ s │
-                       └─────────────────────────────────────┘ i │
-                                                             │ s │
-                                                             └───┘
+                       │              DynamoDB                   │
+                       │                                         │
+                       │  • URLs Table (short_code PK)           │
+                       │  • GSI on original_url                  │
+                       │  • TTL for expiration                   │
+                       │  • Click count tracking                 │
+                       │                                         │
+                       └─────────────────────────────────────────┘
 ```
 
 ### Core Components
 
 - **🌐 CloudFront + WAF**: Global CDN with DDoS protection and rate limiting
 - **🚪 API Gateway**: RESTful API with request validation and CORS
-- **⚡ Lambda Functions**: 3 serverless functions (create, redirect, analytics)
-- **🗄️ DynamoDB**: NoSQL database with GSI for deduplication
-- **📊 Kinesis**: Event streaming for anonymous analytics
+- **⚡ Lambda Functions**: 2 serverless functions (create-url, redirect)
+- **🗄️ DynamoDB**: NoSQL database with GSI for deduplication and click tracking
 - **📈 CloudWatch**: Monitoring, alerting, and operational dashboards
 
 ## 🛠️ Development Setup
@@ -100,7 +98,7 @@ just build
 
 2. **Start local infrastructure**:
 ```bash
-# Start LocalStack with DynamoDB and Kinesis
+# Start LocalStack with DynamoDB
 just local-infra
 ```
 
@@ -111,9 +109,6 @@ just run-local-create-url
 
 # Terminal 2: Redirect function (port 9002)
 just run-local-redirect
-
-# Terminal 3: Analytics function (port 9003)
-just run-local-analytics
 ```
 
 4. **Test the local API**:
@@ -154,7 +149,6 @@ Each environment includes:
 - **API Gateway**: RESTful API with request validation
 - **CloudFront Distribution**: Global CDN with custom domain
 - **WAF Web ACL**: Rate limiting and DDoS protection
-- **Kinesis Stream**: Event streaming for analytics
 - **CloudWatch**: Monitoring, logging, and alerting
 
 ### Manual Terraform Deployment
@@ -365,8 +359,7 @@ just test-load-report
 squrl/
 ├── lambda/                    # AWS Lambda functions
 │   ├── create-url/           # URL creation service
-│   ├── redirect/             # URL redirection service
-│   └── analytics/            # Analytics processing
+│   └── redirect/             # URL redirection service
 ├── shared/                   # Common Rust library
 │   ├── models.rs            # Data structures
 │   ├── dynamodb.rs          # Database operations

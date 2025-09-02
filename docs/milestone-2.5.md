@@ -40,7 +40,7 @@ d70tu78goifc7.cloudfront.net (CloudFront)
 ├── Static Content (/, /index.html) → S3 (squrl-web-ui-dev)
 ├── /create → API Gateway (/v1/create) → create-url Lambda
 ├── /{8-char-code} → API Gateway (/v1/{short_code}) → redirect Lambda
-├── /stats/* → API Gateway (/v1/stats/*) → analytics Lambda
+├── /stats/* → API Gateway (/v1/stats/*) → redirect Lambda (DynamoDB lookup)
 └── /api/* → API Gateway (/v1/api/*) → Future endpoints
 ```
 
@@ -151,7 +151,7 @@ d70tu78goifc7.cloudfront.net (CloudFront)
 ### 🚀 Immediate Next Steps
 1. **Re-enable WAF**: Configure rate limiting and abuse protection
 2. **Production Domain**: Set up www.squrl.pub for production environment
-3. **Analytics UI**: Add statistics visualization to web interface
+3. **Statistics UI**: Add click count visualization to web interface
 4. **Custom Error Pages**: Better 404/error handling for broken short URLs
 
 ### 📈 Scalability Preparation

@@ -34,11 +34,6 @@ pub struct RedirectResponse {
     pub redirect_type: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AnalyticsEvent {
-    pub short_code: String,
-    pub timestamp: String,
-}
 
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
