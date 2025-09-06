@@ -1,12 +1,10 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
-//use lambda_web::{is_running_on_lambda, launch, IntoResponse, RequestExt};
 use serde_json::{Value, json};
 use std::env;
 use tracing::{error, info, instrument, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-// use uuid::Uuid;
 
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
@@ -48,9 +46,7 @@ async fn main() -> Result<(), Error> {
     let table_name = env::var("DYNAMODB_TABLE_NAME").unwrap_or_else(|_| "squrl-urls".to_string());
 
     let db_client = UrlDynamoDbClient::new(dynamodb_client, table_name);
-    let app_state = AppState {
-        db_client,
-    };
+    let app_state = AppState { db_client };
 
     run(service_fn(move |event| {
         function_handler(event, app_state.clone())
@@ -61,10 +57,12 @@ async fn main() -> Result<(), Error> {
 #[instrument(skip(app_state))]
 async fn function_handler(event: LambdaEvent<Value>, app_state: AppState) -> Result<Value, Error> {
     let is_api_gateway = is_api_gateway_event(&event.payload);
+    let is_local_http = env::var("CARGO_LAMBDA_INVOKE_PORT").is_ok();
 
     match handler_impl(event.payload, &app_state).await {
         Ok(response) => {
-            if is_api_gateway {
+            // Always return API Gateway format for local HTTP server or actual API Gateway
+            if is_api_gateway || is_local_http {
                 Ok(create_api_gateway_redirect_response(response))
             } else {
                 Ok(response)
@@ -72,7 +70,7 @@ async fn function_handler(event: LambdaEvent<Value>, app_state: AppState) -> Res
         }
         Err(err) => {
             error!("Function error: {}", err);
-            Ok(create_error_response(&err, is_api_gateway))
+            Ok(create_error_response(&err, is_api_gateway || is_local_http))
         }
     }
 }
@@ -134,7 +132,6 @@ async fn handler_impl(payload: Value, app_state: &AppState) -> Result<Value, Url
 
     Ok(serde_json::to_value(response)?)
 }
-
 
 fn create_api_gateway_redirect_response(response_data: Value) -> Value {
     // Extract the original_url from the response data

@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
+        <title>sqURL - Local Development</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Inter",
+                    "SF Pro Display", system-ui, sans-serif;
+                background: #f8f9fa;
+                position: relative;
+                color: #1a1a1a;
+                line-height: 1.5;
+                min-height: 100vh;
+                min-height: 100svh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                font-size: 16px;
+            }
+
+            .container {
+                width: 100%;
+                max-width: 480px;
+                margin: 0 auto;
+            }
+
+            .dev-notice {
+                background: #d1ecf1;
+                border: 1px solid #bee5eb;
+                color: #0c5460;
+                padding: 12px;
+                border-radius: 8px;
+                margin-bottom: 24px;
+                font-size: 14px;
+                text-align: center;
+            }
+
+            .header {
+                text-align: center;
+                margin-bottom: 48px;
+            }
+
+            .title {
+                font-size: 38px;
+                font-weight: 600;
+                font-variant: small-caps;
+                color: #1a1a1a;
+                margin-bottom: 8px;
+                letter-spacing: -0.01em;
+            }
+
+            .subtitle {
+                font-size: 22px;
+                color: #6b7280;
+                font-weight: 400;
+                font-style: italic;
+            }
+
+            .form-container {
+                margin-bottom: 32px;
+            }
+
+            .input-group {
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                position: relative;
+            }
+
+            .protocol-select {
+                height: 48px;
+                padding: 0 12px;
+                padding-right: 8px;
+                border: 1px solid #e5e7eb;
+                border-right: none;
+                border-radius: 8px 0 0 8px;
+                font-size: 15px;
+                color: #6b7280;
+                background: #f9fafb;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+                min-width: 85px;
+                font-family:
+                    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+                    "Courier New", monospace;
+                outline: none;
+            }
+
+            .url-input {
+                flex: 1;
+                height: 48px;
+                padding: 0 16px;
+                border: 1px solid #e5e7eb;
+                border-radius: 0 8px 8px 0;
+                font-size: 15px;
+                transition: all 0.2s ease;
+                background: #ffffff;
+                outline: none;
+                -webkit-appearance: none;
+            }
+
+            .submit-btn {
+                width: 100%;
+                height: 48px;
+                background: #0066cc;
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                font-size: 18px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                outline: none;
+            }
+
+            .submit-btn:hover:not(:disabled) {
+                background: #0052a3;
+            }
+
+            .submit-btn:disabled {
+                background: #9ca3af;
+                cursor: not-allowed;
+            }
+
+            .submit-btn.loading {
+                position: relative;
+                color: transparent;
+            }
+
+            .submit-btn.loading::after {
+                content: "";
+                position: absolute;
+                width: 16px;
+                height: 16px;
+                top: 50%;
+                left: 50%;
+                margin-left: -8px;
+                margin-top: -8px;
+                border: 2px solid transparent;
+                border-top: 2px solid #ffffff;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+            }
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+
+            .message {
+                margin-top: 12px;
+                padding: 12px 16px;
+                border-radius: 6px;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+
+            .error-message {
+                background: #fef2f2;
+                border: 1px solid #fecaca;
+                color: #dc2626;
+                display: none;
+            }
+
+            .success-message {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                color: #166534;
+                display: none;
+            }
+
+            .result-container {
+                display: none;
+                margin-top: 32px;
+                animation: slideIn 0.3s ease;
+            }
+
+            .result-box {
+                padding: 20px;
+                background: #f9fafb;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                margin-bottom: 16px;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .result-label {
+                font-size: 13px;
+                font-weight: 500;
+                color: #6b7280;
+                margin-bottom: 8px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+
+            .result-url {
+                font-family:
+                    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+                    "Courier New", monospace;
+                font-size: 16px;
+                color: #0066cc;
+                word-break: break-all;
+                padding: 12px 16px;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                margin-bottom: 12px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .copy-actions {
+                display: flex;
+                gap: 12px;
+                justify-content: center;
+            }
+
+            .copy-btn,
+            .reset-btn {
+                padding: 12px 16px;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                min-width: 100px;
+            }
+
+            .copy-btn {
+                background: #0066cc;
+                color: #ffffff;
+            }
+
+            .reset-btn {
+                background: #6b7280;
+                color: #ffffff;
+            }
+
+            .copy-status {
+                font-size: 13px;
+                font-weight: 500;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+                padding: 8px 12px;
+                border-radius: 6px;
+                text-align: center;
+                margin-top: 8px;
+            }
+
+            .copy-status.show {
+                opacity: 1;
+            }
+
+            .copy-status.success {
+                color: #166534;
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="dev-notice">
+                🚧 Local Development Mode - Backend: HTTP API Server on localhost:3000
+            </div>
+
+            <header class="header">
+                <h1 class="title">sqURL</h1>
+                <p class="subtitle">
+                    (v. to squeeze a URL into a short, shareable link)
+                </p>
+            </header>
+
+            <main>
+                <form id="urlForm" class="form-container">
+                    <div class="input-group">
+                        <select id="protocolSelect" class="protocol-select">
+                            <option value="https://">https://</option>
+                            <option value="http://">http://</option>
+                        </select>
+                        <input
+                            type="text"
+                            id="urlInput"
+                            class="url-input"
+                            placeholder="example.com/your-long-url"
+                            required
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="submit-btn">
+                        Squeeze
+                    </button>
+
+                    <div id="errorMessage" class="message error-message"></div>
+                    <div
+                        id="successMessage"
+                        class="message success-message"
+                    ></div>
+                </form>
+
+                <div id="resultContainer" class="result-container">
+                    <div class="result-box">
+                        <div class="result-label">Shortened URL</div>
+                        <div id="resultUrl" class="result-url"></div>
+                        <div class="copy-actions">
+                            <button id="copyBtn" class="copy-btn">
+                                Copy URL
+                            </button>
+                            <button id="resetBtn" class="reset-btn">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                    <div id="copyStatus" class="copy-status"></div>
+                </div>
+            </main>
+        </div>
+
+        <script>
+            // Local development configuration - pointing to our HTTP development server
+            const API_BASE_URL = "http://localhost:3000/api";
+
+            // DOM elements
+            const form = document.getElementById("urlForm");
+            const urlInput = document.getElementById("urlInput");
+            const protocolSelect = document.getElementById("protocolSelect");
+            const submitBtn = document.getElementById("submitBtn");
+            const errorMessage = document.getElementById("errorMessage");
+            const successMessage = document.getElementById("successMessage");
+            const resultContainer = document.getElementById("resultContainer");
+            const resultUrl = document.getElementById("resultUrl");
+            const copyStatus = document.getElementById("copyStatus");
+
+            // Form submission handler
+            form.addEventListener("submit", async function (e) {
+                e.preventDefault();
+                const url = getProcessedUrl();
+                if (validateUrl(url)) {
+                    await shortenUrl(url);
+                }
+            });
+
+            function getProcessedUrl() {
+                let url = urlInput.value.trim();
+                if (!url) return "";
+
+                const hasProtocol = /^https?:\/\//i.test(url);
+                if (!hasProtocol) {
+                    if (url.startsWith("//")) {
+                        url = protocolSelect.value.replace("//", "") + url;
+                    } else {
+                        url = protocolSelect.value + url;
+                    }
+                }
+                return url;
+            }
+
+            function validateUrl(url) {
+                if (!url) {
+                    showError("Please enter a URL");
+                    return false;
+                }
+
+                try {
+                    const urlObj = new URL(url);
+                    if (!["http:", "https:"].includes(urlObj.protocol)) {
+                        showError("Please enter a valid HTTP or HTTPS URL");
+                        return false;
+                    }
+                    return true;
+                } catch (e) {
+                    showError("Please enter a valid URL");
+                    return false;
+                }
+            }
+
+            async function shortenUrl(originalUrl) {
+                setLoading(true);
+                clearMessages();
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/create-url`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            original_url: originalUrl,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.message || `Request failed: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (!data.short_url) {
+                        throw new Error("Invalid response from server");
+                    }
+
+                    showResult(data.short_url);
+                    urlInput.value = "";
+                } catch (error) {
+                    console.error("Error shortening URL:", error);
+                    let errorMsg = "Failed to shorten URL. Please try again.";
+
+                    if (
+                        error.name === "TypeError" &&
+                        error.message.includes("fetch")
+                    ) {
+                        errorMsg =
+                            "Cannot connect to local backend. Make sure 'just local' is running.";
+                    } else if (error.message) {
+                        errorMsg = error.message;
+                    }
+
+                    showError(errorMsg);
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            function setLoading(loading) {
+                submitBtn.disabled = loading;
+                if (loading) {
+                    submitBtn.classList.add("loading");
+                } else {
+                    submitBtn.classList.remove("loading");
+                }
+            }
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = "block";
+                successMessage.style.display = "none";
+            }
+
+            function clearMessages() {
+                errorMessage.style.display = "none";
+                successMessage.style.display = "none";
+            }
+
+            function showResult(shortUrl) {
+                resultUrl.textContent = shortUrl;
+                resultContainer.style.display = "block";
+
+                setTimeout(() => {
+                    copyToClipboard(shortUrl);
+                }, 100);
+            }
+
+            async function copyToClipboard(text) {
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = text;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(textArea);
+                    }
+
+                    copyStatus.textContent = "Copied to clipboard!";
+                    copyStatus.className = "copy-status success show";
+
+                    setTimeout(() => {
+                        copyStatus.classList.remove("show");
+                    }, 2500);
+
+                    return true;
+                } catch (error) {
+                    copyStatus.textContent =
+                        "Copy failed - please select manually";
+                    copyStatus.className = "copy-status show";
+                    setTimeout(() => {
+                        copyStatus.classList.remove("show");
+                    }, 3000);
+                    return false;
+                }
+            }
+
+            function resetForm() {
+                urlInput.value = "";
+                protocolSelect.value = "https://";
+                clearMessages();
+                resultContainer.style.display = "none";
+                resultUrl.textContent = "";
+                copyStatus.classList.remove("show");
+                urlInput.focus();
+            }
+
+            // Event listeners
+            document.getElementById("copyBtn").addEventListener("click", () => {
+                copyToClipboard(resultUrl.textContent);
+            });
+
+            document
+                .getElementById("resetBtn")
+                .addEventListener("click", resetForm);
+
+            // Auto-focus input on page load
+            document.addEventListener("DOMContentLoaded", () => {
+                urlInput.focus();
+            });
+        </script>
+    </body>
+</html>

@@ -9,7 +9,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
-use squrl_shared::models::{ApiGatewayProxyEvent, ApiGatewayProxyResponse, ErrorResponse, is_api_gateway_event};
+use squrl_shared::models::{
+    ApiGatewayProxyEvent, ApiGatewayProxyResponse, ErrorResponse, is_api_gateway_event,
+};
 
 #[derive(Clone)]
 struct AppState {
@@ -62,17 +64,16 @@ async fn main() -> Result<(), Error> {
 }
 
 #[instrument(skip(app_state), fields(request_id = %event.context.request_id))]
-async fn function_handler(
-    event: LambdaEvent<Value>,
-    app_state: AppState,
-) -> Result<Value, Error> {
+async fn function_handler(event: LambdaEvent<Value>, app_state: AppState) -> Result<Value, Error> {
     info!("Handling stats request");
 
     let is_api_gateway = is_api_gateway_event(&event.payload);
+    let is_local_http = env::var("CARGO_LAMBDA_INVOKE_PORT").is_ok();
 
     match handler_impl(event.payload, &app_state).await {
         Ok(response) => {
-            if is_api_gateway {
+            // Always return API Gateway format for local HTTP server or actual API Gateway
+            if is_api_gateway || is_local_http {
                 Ok(create_api_gateway_stats_response(response))
             } else {
                 Ok(response)
@@ -80,7 +81,7 @@ async fn function_handler(
         }
         Err(err) => {
             error!("Function error: {}", err);
-            Ok(create_error_response(&err, is_api_gateway))
+            Ok(create_error_response(&err, is_api_gateway || is_local_http))
         }
     }
 }
@@ -156,9 +157,11 @@ fn create_error_response(error: &UrlShortenerError, is_api_gateway: bool) -> Val
             message: error_message,
             details: None,
         };
-        let error_json = serde_json::to_string(&error_response).unwrap_or_else(|_| "{}".to_string());
+        let error_json =
+            serde_json::to_string(&error_response).unwrap_or_else(|_| "{}".to_string());
         let api_response = ApiGatewayProxyResponse::new(status_code, error_json);
-        serde_json::to_value(api_response).unwrap_or_else(|_| json!({"statusCode": 500, "body": "{}"}))
+        serde_json::to_value(api_response)
+            .unwrap_or_else(|_| json!({"statusCode": 500, "body": "{}"}))
     } else {
         json!({
             "error": "error",

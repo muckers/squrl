@@ -2,7 +2,6 @@ use aws_config::BehaviorVersion;
 use aws_sdk_dynamodb::Client as DynamoDbClient;
 use chrono::{DateTime, Utc};
 use lambda_runtime::{Error, LambdaEvent, run, service_fn};
-//use lambda_web::{is_running_on_lambda, launch, IntoResponse, RequestExt};
 use nanoid::nanoid;
 use serde_json::Value;
 use std::env;
@@ -10,7 +9,6 @@ use tracing::{error, instrument};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use validator::Validate;
 
-// use squrl_shared::base62::encode_base62;
 use squrl_shared::dynamodb::DynamoDbClient as UrlDynamoDbClient;
 use squrl_shared::error::UrlShortenerError;
 use squrl_shared::models::{
@@ -22,7 +20,7 @@ use squrl_shared::validation::{validate_custom_code, validate_url};
 fn init_tracing() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into()),
         ))
         .with(tracing_subscriber::fmt::layer().json())
         .init();
@@ -32,19 +30,34 @@ fn init_tracing() {
 async fn main() -> Result<(), Error> {
     init_tracing();
 
+    tracing::info!("Starting create-url Lambda function");
+    tracing::info!("Environment variables:");
+    for (key, value) in env::vars() {
+        if key.contains("AWS")
+            || key.contains("DYNAMODB")
+            || key.contains("RUST")
+            || key.contains("CARGO")
+        {
+            tracing::info!("{}: {}", key, value);
+        }
+    }
+
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
 
     let dynamodb_client = if let Ok(endpoint_url) = env::var("AWS_ENDPOINT_URL") {
+        tracing::info!("Using LocalStack endpoint: {}", endpoint_url);
         // Local development with LocalStack
         let dynamodb_config = aws_sdk_dynamodb::config::Builder::from(&config)
             .endpoint_url(endpoint_url)
             .build();
         DynamoDbClient::from_conf(dynamodb_config)
     } else {
+        tracing::info!("Using AWS DynamoDB");
         DynamoDbClient::new(&config)
     };
 
     let table_name = env::var("DYNAMODB_TABLE_NAME").unwrap_or_else(|_| "squrl-urls".to_string());
+    tracing::info!("Using DynamoDB table: {}", table_name);
 
     let db_client = UrlDynamoDbClient::new(dynamodb_client, table_name);
 
@@ -59,19 +72,39 @@ async fn function_handler(
     event: LambdaEvent<Value>,
     db_client: UrlDynamoDbClient,
 ) -> Result<Value, Error> {
+    tracing::info!(
+        "Received event: {}",
+        serde_json::to_string_pretty(&event.payload)
+            .unwrap_or_else(|_| "Unable to serialize".to_string())
+    );
+
     let is_api_gateway = is_api_gateway_event(&event.payload);
+    let is_local_http = env::var("CARGO_LAMBDA_INVOKE_PORT").is_ok();
+
+    tracing::info!(
+        "is_api_gateway: {}, is_local_http: {}",
+        is_api_gateway,
+        is_local_http
+    );
 
     match handler_impl(event.payload, &db_client).await {
         Ok(response) => {
-            if is_api_gateway {
-                Ok(create_api_gateway_success_response(response))
+            tracing::info!("Handler succeeded, creating response");
+            // Always return API Gateway format for local HTTP server or actual API Gateway
+            if is_api_gateway || is_local_http {
+                let result = create_api_gateway_success_response(response);
+                tracing::info!("API Gateway response created");
+                Ok(result)
             } else {
+                tracing::info!("Direct response created");
                 Ok(response)
             }
         }
         Err(err) => {
             error!("Function error: {}", err);
-            Ok(create_error_response(&err, is_api_gateway))
+            let result = create_error_response(&err, is_api_gateway || is_local_http);
+            error!("Error response created");
+            Ok(result)
         }
     }
 }
