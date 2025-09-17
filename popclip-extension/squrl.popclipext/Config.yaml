@@ -13,12 +13,13 @@ options:
     type: multiple
     default: production
     values:
-      - label: Production (squrl.pub)
-        value: production
-      - label: Staging
-        value: staging
-      - label: Custom
-        value: custom
+      - production
+      - staging
+      - custom
+    value labels:
+      - Production (squrl.pub)
+      - Staging
+      - Custom
   - identifier: custom_url
     label: Custom API URL
     type: string
