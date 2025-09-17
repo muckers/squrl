@@ -29,3 +29,24 @@ help:
     @echo "Available commands:"
     @echo "=================="
     @just --list
+
+# PopClip Extension Commands
+# =============================================================================
+
+# Build PopClip extension package
+build-popclip:
+    @echo "📦 Building PopClip extension..."
+    @echo "================================"
+    @cd popclip-extension && zip -r squrl.popclipextz squrl.popclipext
+    @echo "✅ Extension packaged as: popclip-extension/squrl.popclipextz"
+
+# Install PopClip extension locally (macOS only)
+install-popclip: build-popclip
+    @echo "🔧 Installing PopClip extension..."
+    @open popclip-extension/squrl.popclipextz
+
+# Clean PopClip extension build artifacts
+clean-popclip:
+    @echo "🧹 Cleaning PopClip extension artifacts..."
+    @rm -f popclip-extension/squrl.popclipextz
+    @echo "✅ PopClip artifacts cleaned"

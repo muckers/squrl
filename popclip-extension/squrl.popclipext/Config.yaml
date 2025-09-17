@@ -1,0 +1,247 @@
+# PopClip Extension Configuration for Squrl URL Shortener
+name: Squrl
+identifier: pub.squrl.popclip
+description: Shorten URLs and text with squrl
+icon: symbol:link.badge.plus
+popclip version: 2024.12
+entitlements: [network]
+
+# User configurable options
+options:
+  - identifier: endpoint
+    label: Service Endpoint
+    type: multiple
+    default: production
+    values:
+      - label: Production (squrl.pub)
+        value: production
+      - label: Staging
+        value: staging
+      - label: Custom
+        value: custom
+  - identifier: custom_url
+    label: Custom API URL
+    type: string
+    default: ""
+    description: Custom API endpoint (when Service Endpoint is set to Custom)
+  - identifier: ttl_hours
+    label: Link Expiry (hours)
+    type: string
+    default: "8760"
+    description: How long before links expire (default 1 year)
+  - identifier: show_notification
+    label: Show Notifications
+    type: boolean
+    default: true
+    description: Show success/error notifications
+
+# Actions for different contexts
+actions:
+  # Action for when a URL is selected
+  - title: Shorten URL
+    icon: symbol:link.badge.plus
+    requirements: [url]
+    javascript: |
+      const axios = require('axios');
+
+      // Get configuration
+      const endpoint = popclip.options.endpoint;
+      const customUrl = popclip.options.custom_url;
+      const ttlHours = parseInt(popclip.options.ttl_hours) || 8760;
+      const showNotif = popclip.options.show_notification;
+
+      // Determine API URL
+      let apiUrl;
+      if (endpoint === 'production') {
+        apiUrl = 'https://squrl.pub/create';
+      } else if (endpoint === 'staging') {
+        apiUrl = 'https://staging.squrl.pub/create';
+      } else if (endpoint === 'custom' && customUrl) {
+        apiUrl = customUrl;
+      } else {
+        apiUrl = 'https://squrl.pub/create';
+      }
+
+      // Function to shorten URL
+      async function shortenUrl() {
+        try {
+          const response = await axios.post(apiUrl, {
+            original_url: popclip.input.text,
+            ttl_hours: ttlHours
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'PopClip-Squrl/1.0'
+            },
+            timeout: 5000
+          });
+
+          if (response.data && response.data.short_url) {
+            // Copy short URL to clipboard
+            popclip.pasteText(response.data.short_url);
+
+            // Show notification if enabled
+            if (showNotif) {
+              popclip.showText(response.data.short_url, { style: 'compact' });
+            }
+          } else {
+            throw new Error('Invalid response from server');
+          }
+        } catch (error) {
+          let errorMsg = 'Failed to shorten URL';
+          if (error.response) {
+            errorMsg = `Error: ${error.response.status}`;
+          } else if (error.request) {
+            errorMsg = 'Network error';
+          }
+
+          if (showNotif) {
+            popclip.showText(errorMsg, { style: 'compact' });
+          }
+        }
+      }
+
+      shortenUrl();
+
+  # Action for any selected text (create a text snippet URL)
+  - title: Create Link from Text
+    icon: symbol:doc.text.magnifyingglass
+    requirements: [text]
+    exclude requirements: [url]
+    javascript: |
+      const axios = require('axios');
+
+      // Get configuration
+      const endpoint = popclip.options.endpoint;
+      const customUrl = popclip.options.custom_url;
+      const ttlHours = parseInt(popclip.options.ttl_hours) || 8760;
+      const showNotif = popclip.options.show_notification;
+
+      // Determine API URL
+      let apiUrl;
+      if (endpoint === 'production') {
+        apiUrl = 'https://squrl.pub/create';
+      } else if (endpoint === 'staging') {
+        apiUrl = 'https://staging.squrl.pub/create';
+      } else if (endpoint === 'custom' && customUrl) {
+        apiUrl = customUrl;
+      } else {
+        apiUrl = 'https://squrl.pub/create';
+      }
+
+      // Function to create text snippet URL
+      async function createTextLink() {
+        try {
+          // Create a data URL with the text content
+          const textContent = popclip.input.text;
+          const encodedText = encodeURIComponent(textContent);
+          const dataUrl = `data:text/plain;charset=utf-8,${encodedText}`;
+
+          const response = await axios.post(apiUrl, {
+            original_url: dataUrl,
+            ttl_hours: ttlHours
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'PopClip-Squrl/1.0'
+            },
+            timeout: 5000
+          });
+
+          if (response.data && response.data.short_url) {
+            // Copy short URL to clipboard
+            popclip.pasteText(response.data.short_url);
+
+            // Show notification if enabled
+            if (showNotif) {
+              popclip.showText(`📎 ${response.data.short_url}`, { style: 'compact' });
+            }
+          } else {
+            throw new Error('Invalid response from server');
+          }
+        } catch (error) {
+          let errorMsg = 'Failed to create link';
+          if (error.response) {
+            errorMsg = `Error: ${error.response.status}`;
+          } else if (error.request) {
+            errorMsg = 'Network error';
+          }
+
+          if (showNotif) {
+            popclip.showText(errorMsg, { style: 'compact' });
+          }
+        }
+      }
+
+      createTextLink();
+
+  # Action for multiple URLs (batch processing)
+  - title: Shorten All URLs
+    icon: symbol:link.circle
+    requirements: [urls]
+    javascript: |
+      const axios = require('axios');
+
+      // Get configuration
+      const endpoint = popclip.options.endpoint;
+      const customUrl = popclip.options.custom_url;
+      const ttlHours = parseInt(popclip.options.ttl_hours) || 8760;
+      const showNotif = popclip.options.show_notification;
+
+      // Determine API URL
+      let apiUrl;
+      if (endpoint === 'production') {
+        apiUrl = 'https://squrl.pub/create';
+      } else if (endpoint === 'staging') {
+        apiUrl = 'https://staging.squrl.pub/create';
+      } else if (endpoint === 'custom' && customUrl) {
+        apiUrl = customUrl;
+      } else {
+        apiUrl = 'https://squrl.pub/create';
+      }
+
+      // Function to shorten multiple URLs
+      async function shortenMultipleUrls() {
+        const urls = popclip.input.urls;
+        const results = [];
+        let successCount = 0;
+
+        for (const url of urls) {
+          try {
+            const response = await axios.post(apiUrl, {
+              original_url: url,
+              ttl_hours: ttlHours
+            }, {
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'PopClip-Squrl/1.0'
+              },
+              timeout: 5000
+            });
+
+            if (response.data && response.data.short_url) {
+              results.push(response.data.short_url);
+              successCount++;
+            }
+          } catch (error) {
+            // Skip failed URLs
+            results.push(`[Failed: ${url}]`);
+          }
+        }
+
+        if (results.length > 0) {
+          // Join all shortened URLs with newlines
+          const output = results.join('\n');
+          popclip.pasteText(output);
+
+          if (showNotif) {
+            popclip.showText(`✓ ${successCount}/${urls.length} shortened`, { style: 'compact' });
+          }
+        } else {
+          if (showNotif) {
+            popclip.showText('No URLs shortened', { style: 'compact' });
+          }
+        }
+      }
+
+      shortenMultipleUrls();
