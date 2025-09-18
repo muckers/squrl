@@ -94,15 +94,19 @@ local-stop:
     #!/usr/bin/env bash
     echo "🛑 Stopping local development environment..."
 
-    # Kill development server
+    # Kill development server processes more comprehensively
     if [ -f /tmp/squrl-dev-server.pid ]; then
         kill $(cat /tmp/squrl-dev-server.pid) 2>/dev/null || true
         rm /tmp/squrl-dev-server.pid
-        echo "✅ Stopped development server"
+        echo "✅ Stopped development server (from PID file)"
     fi
 
-    # Also kill any cargo processes that might be running
+    # Kill any cargo processes that might be running
     pkill -f "cargo run --bin dev-server" 2>/dev/null || true
+
+    # Kill the actual dev-server binary processes
+    pkill -f "target/debug/dev-server" 2>/dev/null || true
+    pkill -f "dev-server" 2>/dev/null || true
 
     # Stop LocalStack
     docker compose down

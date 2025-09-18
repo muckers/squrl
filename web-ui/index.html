@@ -724,7 +724,7 @@
                 clearMessages();
 
                 try {
-                    const response = await fetch("/create", {
+                    const response = await fetch("http://localhost:3000/api/create-url", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
