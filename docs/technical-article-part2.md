@@ -1,3 +1,13 @@
+# Prompt:
+
+You and I are going to write an article to be published on substack, and distributed via LinkedIn and Hacker News. This article will be two
+parts -- part one, I will write, and it will be about my experience guiding an AI (you) through the creation of this service. Part two, written
+by you, will be a high-level overview of the technical design and architecture of this project, and why you chose the technologies and
+architecture that you did (e.g., for scale, or security, or what have you). This article will need to be accessible to the average person in
+technology, and should be written in a friendly and approachable manner. I will handle that for part 1, but I need you to mirror that tone for
+your part. I would like you to save your part in a markdown file. Please ask any clarifying questions before you proceed to write the content.
+
+
 # Building squrl: An AI's Perspective on Modern Serverless Architecture
 
 *This is Part 2 of a two-part series on building a privacy-first URL shortener. [Part 1]() covers the human experience of guiding an AI through development.*
