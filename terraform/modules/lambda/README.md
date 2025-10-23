@@ -7,18 +7,16 @@ This Terraform module creates and configures AWS Lambda functions for the Squrl 
 - **Rust Runtime Support:** Uses `provided.al2` runtime optimized for Rust Lambda functions
 - **IAM Role Management:** Automatic creation and configuration of execution roles
 - **DynamoDB Integration:** Built-in permissions for DynamoDB operations
-- **Kinesis Support:** Optional Kinesis stream integration for analytics
 - **CloudWatch Logging:** Automatic log group creation with configurable retention
 - **Environment Variables:** Flexible configuration through environment variables
 - **Resource Tagging:** Consistent tagging for cost tracking and management
 
 ## Lambda Functions
 
-This module is used to deploy three core Lambda functions:
+This module is used to deploy two core Lambda functions:
 
 1. **create-url:** Creates shortened URLs and stores them in DynamoDB
-2. **redirect:** Handles URL redirects and sends analytics to Kinesis
-3. **analytics:** Processes analytics events from Kinesis stream
+2. **redirect:** Handles URL redirects and updates click counts
 
 ## Usage
 
@@ -43,7 +41,7 @@ module "create_url_lambda" {
 }
 ```
 
-### Lambda with Kinesis Integration
+### Redirect Lambda Function
 
 ```hcl
 module "redirect_lambda" {
@@ -53,37 +51,9 @@ module "redirect_lambda" {
   lambda_zip_path     = "./target/lambda/redirect/bootstrap.zip"
   dynamodb_table_name = module.dynamodb.table_name
   dynamodb_table_arn  = module.dynamodb.table_arn
-  kinesis_stream_arn  = aws_kinesis_stream.analytics.arn
 
   memory_size = 256
   timeout     = 10
-
-  additional_env_vars = {
-    KINESIS_STREAM_NAME = aws_kinesis_stream.analytics.name
-  }
-
-  tags = {
-    Environment = "dev"
-    Service     = "squrl"
-  }
-}
-```
-
-### Analytics Lambda with Kinesis Consumer
-
-```hcl
-module "analytics_lambda" {
-  source = "./modules/lambda"
-
-  function_name            = "squrl-analytics-dev"
-  lambda_zip_path          = "./target/lambda/analytics/bootstrap.zip"
-  dynamodb_table_name      = module.dynamodb.table_name
-  dynamodb_table_arn       = module.dynamodb.table_arn
-  kinesis_stream_arn       = aws_kinesis_stream.analytics.arn
-  kinesis_read_permissions = true
-
-  memory_size = 512
-  timeout     = 60
 
   tags = {
     Environment = "dev"
@@ -100,8 +70,6 @@ module "analytics_lambda" {
 | lambda_zip_path | Path to the Lambda deployment package | `string` | n/a | yes |
 | dynamodb_table_name | Name of the DynamoDB table | `string` | n/a | yes |
 | dynamodb_table_arn | ARN of the DynamoDB table | `string` | n/a | yes |
-| kinesis_stream_arn | ARN of the Kinesis stream | `string` | `""` | no |
-| kinesis_read_permissions | Whether to grant Kinesis read permissions | `bool` | `false` | no |
 | memory_size | Memory size for the Lambda function (MB) | `number` | `256` | no |
 | timeout | Timeout for the Lambda function (seconds) | `number` | `10` | no |
 | rust_log_level | Rust log level (trace, debug, info, warn, error) | `string` | `"info"` | no |
@@ -131,17 +99,6 @@ The module automatically creates and attaches the following IAM policies:
 - `Query` - Query by indexes
 - `UpdateItem` - Update click counts
 
-### Kinesis Permissions (Optional)
-**Write permissions (for redirect function):**
-- `PutRecord` - Send single analytics event
-- `PutRecords` - Batch send analytics events
-
-**Read permissions (for analytics function):**
-- `DescribeStream` - Get stream metadata
-- `GetRecords` - Read analytics events
-- `GetShardIterator` - Navigate stream shards
-- `ListShards` - Enumerate stream shards
-
 ## Environment Variables
 
 The module sets the following environment variables:
@@ -156,13 +113,11 @@ The module sets the following environment variables:
 
 ### Memory Configuration
 - **create-url:** 256 MB (lightweight operations)
-- **redirect:** 256 MB (simple lookups and writes)
-- **analytics:** 512 MB (batch processing)
+- **redirect:** 256 MB (simple lookups and updates)
 
 ### Timeout Settings
 - **create-url:** 10 seconds (includes DynamoDB writes)
-- **redirect:** 10 seconds (includes Kinesis writes)
-- **analytics:** 60 seconds (batch processing)
+- **redirect:** 10 seconds (includes DynamoDB updates)
 
 ## Monitoring
 

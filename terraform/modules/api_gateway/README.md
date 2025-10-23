@@ -58,8 +58,8 @@ module "api_gateway" {
   create_url_lambda_invoke_arn  = module.create_url_lambda.invoke_arn
   redirect_lambda_arn           = module.redirect_lambda.function_arn  
   redirect_lambda_invoke_arn    = module.redirect_lambda.invoke_arn
-  analytics_lambda_arn          = module.analytics_lambda.function_arn
-  analytics_lambda_invoke_arn   = module.analytics_lambda.invoke_arn
+  get_stats_lambda_arn          = module.get_stats_lambda.function_arn
+  get_stats_lambda_invoke_arn   = module.get_stats_lambda.invoke_arn
 
   # Rate limiting configuration
   throttle_burst_limit = 200
@@ -87,8 +87,8 @@ module "api_gateway" {
 | create_url_lambda_invoke_arn | Invoke ARN of the create-url Lambda function | `string` | n/a | yes |
 | redirect_lambda_arn | ARN of the redirect Lambda function | `string` | n/a | yes |
 | redirect_lambda_invoke_arn | Invoke ARN of the redirect Lambda function | `string` | n/a | yes |
-| analytics_lambda_arn | ARN of the analytics Lambda function | `string` | n/a | yes |
-| analytics_lambda_invoke_arn | Invoke ARN of the analytics Lambda function | `string` | n/a | yes |
+| get_stats_lambda_arn | ARN of the get-stats Lambda function | `string` | n/a | yes |
+| get_stats_lambda_invoke_arn | Invoke ARN of the get-stats Lambda function | `string` | n/a | yes |
 | stage_name | Name of the API Gateway stage | `string` | `"v1"` | no |
 | throttle_burst_limit | API throttling burst limit (req/sec) | `number` | `200` | no |
 | throttle_rate_limit | API throttling sustained rate limit (req/sec) | `number` | `100` | no |
