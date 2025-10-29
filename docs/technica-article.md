@@ -8,17 +8,17 @@ A couple of months ago after getting fairly enamoured with Claude Code, I found 
 So, I sat down and came up with a few guiding principles for the process:
 
 - I would not write a single line of code myself. Claude code would be the engineer, and I would be the product owner and project manager only.
-- I would interact with Claude code only through providing requirements, both product and technical, as well as light guidance on the overall architecture and design (e.g., serverless, event driven, etc.).
-- I would generally make Claude code plan it's work via milestones, and record those milestones in markdown files that provided context and a way to track progress.
+- I would interact with Claude code only through providing requirements, both product and technical, as well as light guidance on the overall architecture and design (e.g., rust, serverless, event driven, etc.).
+- I would make Claude code plan it's work via milestones, and record those milestones in markdown files that provided context and a way for Claude code to track its progress.
 - The only MCP server I would use would be Serena to help cut down on context rot/bloat
 - Along with Serena, I would tell Claude code to make liberal use of subagents to preserve main model context tokens
-- This project will be open source, and the service would be publically available (as long as folks are kind to it)
+- This project will be open source, and the service would be publicly available (as long as folks are kind to it)
 
 With these general principles in mind, I got started. Along the way, I also decided that I would end up co-authoring this article with Claude code, and so I had it write the entire second half regarding the technical overview of sqURL.
 
 ## My Experience
 
-The overall experience of guiding Claude code through this project was for the most part pleasant. As the days and weeks went by, we both improved in the part we each played. I learned how to better guide Claude code, and its developers continued to improve its performance and capabilities at a fairly rapid pace. Not only did the tool get better, but there were incremental model updates along the way as well.
+The overall experience of guiding Claude code through this project was for the most part pleasant. As the days and weeks went by, we both improved in the part we played. I learned how to better guide Claude code, and its developers continued to improve its performance and capabilities at a fairly rapid pace. Not only did the tool get better, but there were incremental model updates along the way as well.
 
 ### How I Got better
 
@@ -28,11 +28,11 @@ As many have discovered and already written about, this was naive at best. When 
 
 As the code base grew, focus became more and more difficult to achieve. At the beginning of each session Claude code wanted to start each task with reading through all the code that came before. This got better with Claude.md, but eventually I learned to help Claude code make good use of Serena to track milestones and hold important context in such a way that it stopped reading the entire code base every session. This allowed my sessions to go on just a little bit longer, getting more work done.
 
-A much better improvement in my guidance was guilding Claude code on the use of subagents. As each subagent gets it's own context window, I began to treat the main model as the flight controller, spinning off subagents to do specific tasks and then returning summaries to the main model to continue the work. This was a game changer for the project. To be clear, I wasn't even creating specialized agents for Claude code to use, I was merely giving it prompts like:
+A much better improvement in my guidance was instructing Claude code on the use of subagents. As each subagent gets it's own context window, I began to treat the main model as the flight controller, spinning off subagents to do specific tasks and then returning summaries to the main model to continue the work. This was a game changer for the project. To be clear, I wasn't even creating specialized agents for Claude code to use, I was merely giving it prompts like:
 
   ```Let's plan Milestone 3 out (from roadmap.md). Make use of both Serena and subagents to conserve main model context, and write your plan to milestone3.md```
 
-It was that phrase "to conserve main model context" that really impacted how Claude code approached each session. Occasionally I might have to tell Claude code specifically what I wanted it to use a subagent for, but generally it did a great job of breaking up a task into 2-3 subagent tasks and coordinating the work amongst them. Interestingly, when the main model context was starting to get full it would forget to use subagents, and I would intervene.
+It was that phrase "to conserve main model context" that really impacted how Claude code approached each session. Occasionally I might have to tell Claude code specifically what I wanted it to use a subagent for, but generally it did a great job of breaking up a task into 2-3 subagent tasks and coordinating the work amongst them. Interestingly, when the main model context was starting to get full it would forget to use subagents, and I would have to intervene.
 
 Additionally I made liberal use of `/compact` both with no arguments, and on occasion with specific instructions for what to save. This is critical to keeping the model on task.
 
@@ -46,7 +46,7 @@ Because I gave Claude code the technical requirements, I am generally familar wi
 
 When you read Claude code's description below, my hope is that you will easily pick up on the main requirements I gave it along the way. Looking at the code you will no doubt see it's attempt to operationalize those requirements to varying levels of success.
 
-This project is open source and can be found here. Additionally, it has been deployed and is available at https://squrl.pub -- this includes a simple web interface, as well as API for automating. The repos also includes a sqURL shell script to shorten URL's via the shell or other scripts, in addition to a popclip extension (for Mac users).
+This project is open source and can be found https://github.com/muckers/squrl. Additionally, it has been deployed and is available at https://squrl.pub -- this includes a simple web interface, as well as an API for automating. The repos also includes a sqURL shell script to shorten URL's via the shell or other scripts, in addition to a popclip extension (for Mac users).
 
 I am going to leave this service up for anyone to use, as long as two things remain true:
 
@@ -57,7 +57,7 @@ So, be nice. It's a useful little service, don't ruin it for everyone else.
 
 Before we let Claude give a technical overview of the project, here is what I provided for the prompt:
 
-```You and I are going to write an article to be published on substack, and distributed via LinkedIn and Hacker News. This article will be two parts -- part one, I will write, and it will be about my experience guiding an AI (you) through the creation of this service. Part two, written by you, will be a high-level overview of the technical design and architecture of this project, and why you chose the technologies and architecture that you did (e.g., for scale, or security, or what have yo ). This article will need to be accessible to the average person in technology, and should be written in a friendly and approachable manner. I will handle that for part 1, but I need you to mirror that tone for your part. I would like you to save your part in a markdown file. Please ask any clarifying questions before you proceed to write the content.```
+```You and I are going to write an article to be published on substack, and distributed via LinkedIn and Hacker News. This article will be in two parts -- part one, I will write, and it will be about my experience guiding an AI (you) through the creation of this service. Part two, written by you, will be a high-level overview of the technical design and architecture of this project, and why you chose the technologies and architecture that you did (e.g., for scale, or security, or what have you ). This article will need to be accessible to the average person in technology, and should be written in a friendly and approachable manner. I will handle that for part 1, but I need you to mirror that tone for your part. I would like you to save your part in a markdown file. Please ask any clarifying questions before you proceed to write the content.```
 
 The remaining text was written by Claude code, with no edits made.
 
