@@ -14,8 +14,8 @@ set -e
 
 # Default values
 DEFAULT_ENDPOINT="https://squrl.pub"
-# Temporary: Using API Gateway directly for staging until CloudFront POST is configured
-STAGING_ENDPOINT="https://q3lq9c9i4e.execute-api.us-east-1.amazonaws.com"
+# Staging endpoint - set SQURL_STAGING_ENDPOINT environment variable or use --endpoint flag
+STAGING_ENDPOINT="${SQURL_STAGING_ENDPOINT:-https://staging.squrl.pub}"
 API_ENDPOINT="${SQURL_API_ENDPOINT:-$DEFAULT_ENDPOINT}"
 TTL_HOURS=""
 JSON_OUTPUT=0
@@ -49,7 +49,8 @@ Options:
   -h, --help             Show this help message
 
 Environment Variables:
-  SQURL_API_ENDPOINT     Override default API endpoint
+  SQURL_API_ENDPOINT        Override default API endpoint
+  SQURL_STAGING_ENDPOINT    Override staging API endpoint (default: staging.squrl.pub)
 
 Examples:
   # Basic usage (uses squrl.pub)
@@ -158,14 +159,17 @@ command -v jq >/dev/null 2>&1 || error "jq is required but not installed"
 # Build the JSON payload
 PAYLOAD=$(build_json_payload)
 
-# Determine the correct API path based on endpoint
-if [ "$API_ENDPOINT" = "$STAGING_ENDPOINT" ]; then
-    # For staging (API Gateway direct), use /v1/create
-    API_PATH="/v1/create"
-else
-    # For production (CloudFront), use /create (CloudFront adds /v1 via origin_path)
-    API_PATH="/create"
-fi
+# Determine the correct API path
+# If the endpoint looks like an API Gateway direct URL, use /v1/create
+# Otherwise use /create (CloudFront adds /v1 via origin_path)
+case "$API_ENDPOINT" in
+    *execute-api*.amazonaws.com*)
+        API_PATH="/v1/create"
+        ;;
+    *)
+        API_PATH="/create"
+        ;;
+esac
 
 # Make the API request
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \

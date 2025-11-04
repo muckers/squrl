@@ -15,3 +15,9 @@ variable "admin_email" {
   type        = string
   default     = "admin@example.com"
 }
+
+variable "acm_certificate_arn" {
+  description = "ARN of the ACM certificate for CloudFront HTTPS. Must be in us-east-1 region."
+  type        = string
+  default     = ""  # Optional: will disable HTTPS if not provided
+}

@@ -3,7 +3,16 @@
 
 set -e
 
-API_ENDPOINT="${SQURL_API_ENDPOINT:-https://q3lq9c9i4e.execute-api.us-east-1.amazonaws.com/v1}"
+# API Endpoint - set via environment variable
+# Example: export SQURL_API_ENDPOINT=https://YOUR_API_GW_ID.execute-api.us-east-1.amazonaws.com/v1
+if [ -z "$SQURL_API_ENDPOINT" ]; then
+    echo "Error: SQURL_API_ENDPOINT environment variable not set"
+    echo "Please set it to your API Gateway endpoint"
+    echo "Example: export SQURL_API_ENDPOINT=https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/v1"
+    exit 1
+fi
+
+API_ENDPOINT="$SQURL_API_ENDPOINT"
 
 echo "Testing URL expiration functionality..."
 echo "======================================="

@@ -94,12 +94,16 @@ done
 if [ -n "$CLOUDFRONT_PATHS" ]; then
     echo ""
     echo "☁️  Invalidating CloudFront cache for deleted URLs..."
-    CLOUDFRONT_DISTRIBUTION_ID="E29JM0YQZA23O"
-    
-    echo "   Creating CloudFront invalidation for $(echo "$CLOUDFRONT_PATHS" | wc -l | tr -d ' ') paths..."
-    echo "$CLOUDFRONT_PATHS" | tr '\n' ' ' | xargs aws cloudfront create-invalidation \
-        --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
-        --paths > /dev/null 2>&1 && echo "   ✅ CloudFront invalidation created successfully" || echo "   ⚠️  CloudFront invalidation may have failed (this is non-critical)"
+    CLOUDFRONT_DISTRIBUTION_ID="${CLOUDFRONT_DISTRIBUTION_ID:-}"  # Set via environment variable
+
+    if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+        echo "   Creating CloudFront invalidation for $(echo "$CLOUDFRONT_PATHS" | wc -l | tr -d ' ') paths..."
+        echo "$CLOUDFRONT_PATHS" | tr '\n' ' ' | xargs aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths > /dev/null 2>&1 && echo "   ✅ CloudFront invalidation created successfully" || echo "   ⚠️  CloudFront invalidation may have failed (this is non-critical)"
+    else
+        echo "   ⚠️  CLOUDFRONT_DISTRIBUTION_ID not set, skipping CloudFront invalidation"
+    fi
 else
     echo ""
     echo "☁️  No CloudFront invalidation needed (no URLs found)"
