@@ -4,13 +4,15 @@ This directory contains environment-specific Terraform configurations for squrl.
 
 ## Configuration Pattern
 
-We use a two-file pattern to separate safe defaults from sensitive values:
+We use a **required** two-file pattern to separate safe defaults from sensitive values:
 
 ```
 terraform.tfvars              ← Tracked in git (safe defaults only)
-secrets.auto.tfvars          ← Local only, gitignored (your actual secrets)
+secrets.auto.tfvars          ← Local only, REQUIRED, gitignored (your actual secrets)
 secrets.auto.tfvars.example  ← Tracked template
 ```
+
+⚠️ **IMPORTANT**: Terraform will **FAIL** if `secrets.auto.tfvars` is missing. This is intentional!
 
 ### How It Works
 
@@ -111,13 +113,26 @@ So your `secrets.auto.tfvars` will override defaults in `terraform.tfvars`.
 
 ## Troubleshooting
 
-### "Variable not defined" error
+### Error: "No value for required variable"
 
-Make sure you've created `secrets.auto.tfvars`:
+```
+Error: No value for required variable
+  on variables.tf line 18:
+  18: variable "acm_certificate_arn" {
+```
+
+**This means `secrets.auto.tfvars` is missing or incomplete.**
+
+Fix:
 ```bash
+# Check if file exists
 ls secrets.auto.tfvars
+
 # If missing, copy from example
 cp secrets.auto.tfvars.example secrets.auto.tfvars
+
+# Edit and add your actual ACM certificate ARN
+vim secrets.auto.tfvars
 ```
 
 ### "Invalid ARN" error
