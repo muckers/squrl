@@ -47,7 +47,7 @@ sqURL is a modern URL shortener service designed with privacy, performance, and 
                        ┌─────────────────────────────────────────┐
                        │          Lambda Functions               │
                        ├─────────────────────────────────────────┤
-                       │    create-url    │     redirect        │
+                       │  create-url  │  redirect  │  get-stats  │
                        └─────────────────────────────────────────┘
                                           │
                                           ▼
@@ -66,7 +66,7 @@ sqURL is a modern URL shortener service designed with privacy, performance, and 
 
 - **🌐 CloudFront + WAF**: Global CDN with DDoS protection and rate limiting
 - **🚪 API Gateway**: RESTful API with request validation and CORS
-- **⚡ Lambda Functions**: 2 serverless functions (create-url, redirect)
+- **⚡ Lambda Functions**: 3 serverless functions (create-url, redirect, get-stats)
 - **🗄️ DynamoDB**: NoSQL database with GSI for deduplication and click tracking
 - **📈 CloudWatch**: Monitoring, alerting, and operational dashboards
 
@@ -359,7 +359,8 @@ just test-load-report
 squrl/
 ├── lambda/                    # AWS Lambda functions
 │   ├── create-url/           # URL creation service
-│   └── redirect/             # URL redirection service
+│   ├── redirect/             # URL redirection service
+│   └── get-stats/            # Statistics retrieval service
 ├── shared/                   # Common Rust library
 │   ├── models.rs            # Data structures
 │   ├── dynamodb.rs          # Database operations
