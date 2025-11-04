@@ -71,10 +71,14 @@ terraform_plan.txt
 .terraform.lock.hcl
 **/modules.json
 
-# Variable files with actual values (keep .tfvars examples)
-# Uncomment this if you want to ignore ALL tfvars:
-# *.tfvars
-# *.tfvars.json
+# Variable files with actual values
+# Note: We keep terraform.tfvars tracked (safe defaults only)
+# But exclude local secret files
+*.auto.tfvars
+secrets.tfvars
+secrets.*.tfvars
+local.tfvars
+*.auto.tfvars.json
 
 # Override files (may contain local secrets)
 override.tf
