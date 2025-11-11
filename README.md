@@ -1,4 +1,4 @@
-(See the substack Article on this project: https://ronforrester.substack.com/p/building-squrl -- this README, and entire project, has been developed by Claude Code)
+## See the substack Article on this project: https://ronforrester.substack.com/p/building-squrl -- this README, and entire project, has been developed by Claude Code 
 
 # sqURL - Privacy-First Serverless URL Shortener
 
