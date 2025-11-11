@@ -1,3 +1,5 @@
+(See the substack Article on this project: https://ronforrester.substack.com/p/building-squrl -- this README, and entire project, has been developed by Claude Code)
+
 # sqURL - Privacy-First Serverless URL Shortener
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
