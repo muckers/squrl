@@ -19,3 +19,6 @@ terraform_plan.txt
 **/distribution_config.json
 **/route53_cname_record.json
 **/update_distribution_config.json
+
+# Personal utility scripts (not for source control)
+toggle-cloudfront.sh
