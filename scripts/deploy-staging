@@ -16,12 +16,20 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Configuration
-S3_BUCKET="squrl-web-ui-dev"
-CLOUDFRONT_DISTRIBUTION_ID="E29JM0YQZA23O"
-WEB_UI_DIR="/Users/rjf/code/rust/squrl-proto/web-ui"
+S3_BUCKET="${S3_BUCKET:-squrl-web-ui-dev}"
+CLOUDFRONT_DISTRIBUTION_ID="${CLOUDFRONT_DISTRIBUTION_ID:-}"  # Set via environment variable
+WEB_UI_DIR="${WEB_UI_DIR:-./web-ui}"  # Default to ./web-ui relative to project root
 
 echo -e "${BLUE}🚀 Deploying web UI to staging environment...${NC}"
 echo
+
+# Check if CloudFront distribution ID is set
+if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+    echo -e "${RED}❌ Error: CLOUDFRONT_DISTRIBUTION_ID environment variable is not set${NC}"
+    echo "   Please set it to your CloudFront distribution ID"
+    echo "   Example: export CLOUDFRONT_DISTRIBUTION_ID=EXXXXXXXXXXXXX"
+    exit 1
+fi
 
 # Check if web-ui directory exists
 if [ ! -d "$WEB_UI_DIR" ]; then

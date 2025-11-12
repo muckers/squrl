@@ -10,7 +10,7 @@ This report validates the completion of Milestone 2 for the Squrl URL Shortener 
 - **Environment**: Development (dev)
 - **Test Date**: August 26, 2025
 - **Test Duration**: Comprehensive testing session
-- **API Gateway URL**: https://q3lq9c9i4e.execute-api.us-east-1.amazonaws.com/v1
+- **API Gateway URL**: https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/v1
 
 ## ✅ SUCCESS CRITERIA VALIDATION
 
@@ -74,7 +74,7 @@ Location: https://example.com
 ```
 
 #### **SNS Alert Configuration**
-- ✅ Topic: arn:aws:sns:us-east-1:634280252303:squrl-alerts-dev
+- ✅ Topic: arn:aws:sns:us-east-1:YOUR_ACCOUNT_ID:squrl-alerts-dev
 - ✅ Email subscription configured (pending confirmation)
 - ✅ Alarms properly connected to SNS
 

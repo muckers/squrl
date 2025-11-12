@@ -1,3 +1,5 @@
+## See the substack Article on this project: https://ronforrester.substack.com/p/building-squrl -- this README, and entire project, has been developed by Claude Code 
+
 # sqURL - Privacy-First Serverless URL Shortener
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -47,7 +49,7 @@ sqURL is a modern URL shortener service designed with privacy, performance, and 
                        ┌─────────────────────────────────────────┐
                        │          Lambda Functions               │
                        ├─────────────────────────────────────────┤
-                       │    create-url    │     redirect        │
+                       │  create-url  │  redirect  │  get-stats  │
                        └─────────────────────────────────────────┘
                                           │
                                           ▼
@@ -66,7 +68,7 @@ sqURL is a modern URL shortener service designed with privacy, performance, and 
 
 - **🌐 CloudFront + WAF**: Global CDN with DDoS protection and rate limiting
 - **🚪 API Gateway**: RESTful API with request validation and CORS
-- **⚡ Lambda Functions**: 2 serverless functions (create-url, redirect)
+- **⚡ Lambda Functions**: 3 serverless functions (create-url, redirect, get-stats)
 - **🗄️ DynamoDB**: NoSQL database with GSI for deduplication and click tracking
 - **📈 CloudWatch**: Monitoring, alerting, and operational dashboards
 
@@ -126,6 +128,39 @@ curl -I http://localhost:9002/2015-03-31/functions/function/invocations \
 
 ## 🚢 Deployment
 
+### AWS Prerequisites
+
+Before deploying, you need to configure AWS-specific resources:
+
+1. **ACM Certificate** (Required for CloudFront HTTPS)
+   - Must be created in `us-east-1` region (CloudFront requirement)
+   - Create via AWS Console → Certificate Manager → Request Certificate
+   - Validate using DNS or email verification
+
+2. **Secrets Configuration** (Required)
+   ```bash
+   # For each environment (dev/prod), copy the example file:
+   cd terraform/environments/prod
+   cp secrets.auto.tfvars.example secrets.auto.tfvars
+
+   # Edit and add your ACM certificate ARN
+   vim secrets.auto.tfvars
+   # acm_certificate_arn = "arn:aws:acm:us-east-1:YOUR_ACCOUNT_ID:certificate/YOUR_CERT_ID"
+   ```
+
+3. **Optional: Environment Variables**
+   ```bash
+   # Copy environment template
+   cp .env.example .env
+
+   # Configure CloudFront distribution ID, API endpoints, etc.
+   vim .env
+   ```
+
+📚 **For detailed configuration instructions**, see [`terraform/environments/README.md`](terraform/environments/README.md)
+
+⚠️ **Important:** Terraform will fail with a clear error if `secrets.auto.tfvars` is missing. This is intentional to prevent accidental deployments without proper configuration.
+
 ### Environment Management
 
 The project supports multiple environments with Terraform:
@@ -154,11 +189,18 @@ Each environment includes:
 ### Manual Terraform Deployment
 
 ```bash
-# Initialize and deploy to production
+# 1. Set up secrets configuration (REQUIRED - only needed once)
 cd terraform/environments/prod
+cp secrets.auto.tfvars.example secrets.auto.tfvars
+vim secrets.auto.tfvars  # Add your ACM certificate ARN
+
+# 2. Initialize and deploy
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
+
+# Note: Without secrets.auto.tfvars, terraform will fail with:
+# "Error: No value for required variable"
 ```
 
 ## 📚 API Reference
@@ -359,7 +401,8 @@ just test-load-report
 squrl/
 ├── lambda/                    # AWS Lambda functions
 │   ├── create-url/           # URL creation service
-│   └── redirect/             # URL redirection service
+│   ├── redirect/             # URL redirection service
+│   └── get-stats/            # Statistics retrieval service
 ├── shared/                   # Common Rust library
 │   ├── models.rs            # Data structures
 │   ├── dynamodb.rs          # Database operations
@@ -423,10 +466,17 @@ just test-api prod
 ### Development Workflow
 
 1. **Fork and clone** the repository
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make changes** and add tests
-4. **Run the test suite**: `just test-all dev`
-5. **Submit a pull request** with a clear description
+2. **Set up configuration** (for deployment testing):
+   ```bash
+   # Copy secrets template for dev environment
+   cd terraform/environments/dev
+   cp secrets.auto.tfvars.example secrets.auto.tfvars
+   # Add your ACM certificate ARN
+   ```
+3. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+4. **Make changes** and add tests
+5. **Run the test suite**: `just test-all dev`
+6. **Submit a pull request** with a clear description
 
 ### Code Standards
 

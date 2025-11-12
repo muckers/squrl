@@ -6,10 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a URL shortener prototype written in Rust with a serverless architecture. The project includes:
 - A shared library (`shared/`) with common models and utilities
-- AWS Lambda functions (`lambda/`) for create-url and redirect operations
+- AWS Lambda functions (`lambda/`) for create-url, redirect, and get-stats operations
 - Terraform infrastructure configuration (`terraform/`) for AWS deployment
-- AWS CloudFormation template (`cf.yaml`) as an alternative deployment option
-- Architectural suggestions for scaling in `high-scale-suggestions.md`
 
 ## Architecture
 
@@ -24,6 +22,7 @@ This is a URL shortener prototype written in Rust with a serverless architecture
 2. **Lambda Functions** (`lambda/`):
    - **create-url**: Creates shortened URLs and stores them in DynamoDB
    - **redirect**: Handles URL redirects and updates click counts in DynamoDB
+   - **get-stats**: Retrieves statistics for shortened URLs
 
 3. **Database Schema**: DynamoDB table with:
    - `short_code`: Partition key for fast lookups
@@ -48,6 +47,7 @@ just build
 # Build a specific Lambda function
 just build-function create-url
 just build-function redirect
+just build-function get-stats
 
 # Check build status and artifacts
 just status
@@ -125,13 +125,3 @@ cargo install just
 # Install awslocal for local testing
 pip install awscli-local[ver1]
 ```
-
-## Scaling Considerations
-
-The `high-scale-suggestions.md` file contains detailed recommendations for production scaling including:
-- Connection pooling with r2d2
-- Async implementation with sqlx and tokio
-- Caching with moka
-- Circuit breaking with failsafe
-- Transaction support and batch operations
-- WAL mode for SQLite performance

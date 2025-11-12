@@ -19,6 +19,9 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Get current AWS account ID for constructing ARNs
+data "aws_caller_identity" "current" {}
+
 # Keep existing resources
 module "dynamodb" {
   source = "../../modules/dynamodb"
@@ -361,7 +364,7 @@ module "cloudfront" {
 
   # Custom domain configuration
   custom_domain_name = "staging.squrl.pub"
-  certificate_arn    = "arn:aws:acm:us-east-1:634280252303:certificate/73c30742-3f2b-4e2c-95b4-f97367ee1514"
+  certificate_arn    = var.acm_certificate_arn
 
   # Disable WAF logging to simplify initial deployment
   enable_waf_logging = false

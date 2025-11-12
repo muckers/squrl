@@ -19,6 +19,9 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Get current AWS account ID for constructing ARNs
+data "aws_caller_identity" "current" {}
+
 # Keep existing resources
 module "dynamodb" {
   source = "../../modules/dynamodb"
@@ -417,7 +420,7 @@ module "cloudfront" {
 
   # Custom domain configuration - Production domain
   custom_domain_name = "squrl.pub"
-  certificate_arn    = "arn:aws:acm:us-east-1:634280252303:certificate/73c30742-3f2b-4e2c-95b4-f97367ee1514"
+  certificate_arn    = var.acm_certificate_arn
 
   # Enable WAF for production (temporarily disable logging due to CloudWatch log group ARN issue)
   enable_waf_logging = false

@@ -1,19 +1,90 @@
+# Rust build artifacts
 /target
+target/
 Cargo.lock
 
+# Tool-specific directories
 .serena/
-localstack-data/
-urls.db
-target/
-*.zip
+
+# ============================================================================
+# CREDENTIALS AND SECRETS - NEVER COMMIT THESE
+# ============================================================================
+
+# Environment variables (never commit actual values)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+*.env
+
+# AWS Credentials
+.aws/
+aws-credentials
+credentials
+**/credentials.json
+**/aws-credentials.json
+
+# SSH Keys
+*.pem
+*.key
+*.ppk
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.pub
+
+# SSL/TLS Certificates (private keys)
+*.crt
+*.cer
+*.p12
+*.pfx
+*.keystore
+
+# API Keys and Tokens
+**/api-keys.json
+**/secrets.json
+**/*-secrets.json
+**/*-credentials.json
+**/token.txt
+**/*.token
+
+# Service Account Files
+**/service-account*.json
+**/gcp-credentials.json
+**/firebase-adminsdk*.json
+
+# ============================================================================
+# TERRAFORM
+# ============================================================================
+
+# State files (may contain sensitive data)
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfstate.backup
 tfplan
 terraform_plan.txt
 *.tfplan
 .terraform.lock.hcl
 **/modules.json
+
+# Variable files with actual values
+# Note: We keep terraform.tfvars tracked (safe defaults only)
+# But exclude local secret files
+*.auto.tfvars
+secrets.tfvars
+secrets.*.tfvars
+local.tfvars
+*.auto.tfvars.json
+
+# Override files (may contain local secrets)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
 # Temporary AWS config files
 **/distribution_config.json
@@ -22,3 +93,43 @@ terraform_plan.txt
 
 # Personal utility scripts (not for source control)
 toggle-cloudfront.sh
+
+# ============================================================================
+# LOCAL DEVELOPMENT
+# ============================================================================
+
+# LocalStack data
+localstack-data/
+
+# Local databases
+urls.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Build artifacts
+*.zip
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================================
+# SECURITY SCANNING
+# ============================================================================
+
+# Security scan results (may contain sensitive info)
+trivy-results.json
+snyk-results.json
+security-scan*.txt
