@@ -93,6 +93,7 @@ override.tf.json
 
 # Personal utility scripts (not for source control)
 toggle-cloudfront.sh
+analytics.sh
 
 # ============================================================================
 # LOCAL DEVELOPMENT
