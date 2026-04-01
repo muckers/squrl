@@ -101,7 +101,7 @@ just destroy-dev
 - **Click Tracking**: Direct updates to DynamoDB click_count field on redirect
 - **Error Handling**: Custom error types with proper HTTP status codes
 - **Observability**: Structured logging with tracing, CloudWatch integration
-- **Runtime**: Uses `provided.al2` runtime with cargo-lambda for optimal performance
+- **Runtime**: Uses `provided.al2023` runtime with cargo-lambda for optimal performance
 
 ## Build System
 
@@ -110,7 +110,7 @@ The project uses **cargo-lambda** for building Lambda functions, which is the mo
 ### cargo-lambda Benefits:
 - Native Rust tooling integration
 - Optimized for AWS Lambda runtime
-- Automatic cross-compilation for `provided.al2`
+- Automatic cross-compilation for `provided.al2023`
 - Built-in local testing capabilities
 - Simplified deployment workflow
 

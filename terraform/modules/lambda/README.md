@@ -4,7 +4,7 @@ This Terraform module creates and configures AWS Lambda functions for the Squrl 
 
 ## Features
 
-- **Rust Runtime Support:** Uses `provided.al2` runtime optimized for Rust Lambda functions
+- **Rust Runtime Support:** Uses `provided.al2023` runtime optimized for Rust Lambda functions
 - **IAM Role Management:** Automatic creation and configuration of execution roles
 - **DynamoDB Integration:** Built-in permissions for DynamoDB operations
 - **CloudWatch Logging:** Automatic log group creation with configurable retention
@@ -157,7 +157,7 @@ cargo lambda build --release --output-format zip
 
 ## Notes
 
-- The module uses `provided.al2` runtime for optimal Rust performance
+- The module uses `provided.al2023` runtime for optimal Rust performance
 - X-Ray tracing has been removed for monitoring simplification
 - Functions are stateless and designed for horizontal scaling
 - IAM roles are created per function for security isolation

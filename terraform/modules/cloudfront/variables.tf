@@ -30,6 +30,12 @@ variable "certificate_arn" {
   default     = null
 }
 
+variable "enable_s3_origin" {
+  description = "Enable S3 static content origin. Use this instead of relying on s3_bucket_regional_domain_name being null, to avoid unknown-value issues with count at plan time."
+  type        = bool
+  default     = false
+}
+
 variable "s3_bucket_name" {
   description = "S3 bucket name for static content origin (optional)"
   type        = string

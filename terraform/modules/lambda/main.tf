@@ -3,7 +3,7 @@ resource "aws_lambda_function" "function" {
   function_name = var.function_name
   role          = aws_iam_role.lambda_exec.arn
   handler       = "bootstrap"
-  runtime       = "provided.al2"
+  runtime       = "provided.al2023"
 
   memory_size = var.memory_size
   timeout     = var.timeout

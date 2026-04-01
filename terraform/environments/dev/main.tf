@@ -359,6 +359,7 @@ module "cloudfront" {
   environment             = var.environment
 
   # S3 static hosting integration
+  enable_s3_origin               = true
   s3_bucket_name                 = module.static_hosting.bucket_id
   s3_bucket_regional_domain_name = module.static_hosting.bucket_regional_domain_name
 

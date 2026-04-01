@@ -1,6 +1,6 @@
 # CloudFront Origin Access Identity for S3
 resource "aws_cloudfront_origin_access_identity" "s3_oai" {
-  count   = var.s3_bucket_regional_domain_name != null ? 1 : 0
+  count   = var.enable_s3_origin ? 1 : 0
   comment = "OAI for S3 bucket"
 }
 
@@ -9,7 +9,7 @@ resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = var.ipv6_enabled
   comment             = "Squrl URL Shortener CloudFront Distribution - ${var.environment}"
-  default_root_object = var.s3_bucket_name != null ? "index.html" : ""
+  default_root_object = var.enable_s3_origin ? "index.html" : ""
   price_class         = var.price_class
   web_acl_id          = var.enable_waf ? aws_wafv2_web_acl.main[0].arn : null
   http_version        = var.http2_enabled ? "http2" : "http1.1"
@@ -38,7 +38,7 @@ resource "aws_cloudfront_distribution" "main" {
 
   # Optional S3 origin for static content
   dynamic "origin" {
-    for_each = var.s3_bucket_regional_domain_name != null ? [1] : []
+    for_each = var.enable_s3_origin ? [1] : []
     content {
       domain_name = var.s3_bucket_regional_domain_name
       origin_id   = "s3-static-${var.environment}"
@@ -51,13 +51,13 @@ resource "aws_cloudfront_distribution" "main" {
 
   # Default cache behavior - serve static content if S3 is available, otherwise API
   default_cache_behavior {
-    target_origin_id           = var.s3_bucket_regional_domain_name != null ? "s3-static-${var.environment}" : "api-gateway-${var.environment}"
+    target_origin_id           = var.enable_s3_origin ? "s3-static-${var.environment}" : "api-gateway-${var.environment}"
     viewer_protocol_policy     = "redirect-to-https"
-    allowed_methods            = var.s3_bucket_regional_domain_name != null ? ["GET", "HEAD", "OPTIONS"] : ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    allowed_methods            = var.enable_s3_origin ? ["GET", "HEAD", "OPTIONS"] : ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods             = ["GET", "HEAD", "OPTIONS"]
     compress                   = true
-    cache_policy_id            = var.s3_bucket_regional_domain_name != null ? aws_cloudfront_cache_policy.static_content.id : aws_cloudfront_cache_policy.api_default.id
-    origin_request_policy_id   = var.s3_bucket_regional_domain_name != null ? null : aws_cloudfront_origin_request_policy.api_default.id
+    cache_policy_id            = var.enable_s3_origin ? aws_cloudfront_cache_policy.static_content.id : aws_cloudfront_cache_policy.api_default.id
+    origin_request_policy_id   = var.enable_s3_origin ? null : aws_cloudfront_origin_request_policy.api_default.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   }
 

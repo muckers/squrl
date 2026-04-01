@@ -4,11 +4,10 @@
 # Build all Lambda functions for deployment
 build:
     @echo "Building all Lambda functions with cargo-lambda..."
-    cargo lambda build --release --target x86_64-unknown-linux-musl
+    cargo lambda build --release --target x86_64-unknown-linux-musl -p create-url -p redirect -p get-stats
     @echo "Creating deployment packages..."
     zip -j target/lambda/create-url/bootstrap.zip target/lambda/create-url/bootstrap
     zip -j target/lambda/redirect/bootstrap.zip target/lambda/redirect/bootstrap
-    zip -j target/lambda/analytics/bootstrap.zip target/lambda/analytics/bootstrap
     zip -j target/lambda/get-stats/bootstrap.zip target/lambda/get-stats/bootstrap
 
 # Build a specific Lambda function

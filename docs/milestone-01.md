@@ -33,7 +33,7 @@ This milestone focuses on migrating the existing SQLite-based URL shortener to a
 
 **Purpose**: Create shortened URLs with collision-resistant ID generation
 
-**Runtime**: `provided.al2` (Custom Rust runtime)
+**Runtime**: `provided.al2023` (Custom Rust runtime)
 
 **Memory**: 256MB (adjustable based on performance testing)
 
@@ -77,7 +77,7 @@ RUST_LOG: "info"
 
 **Purpose**: Lookup URLs and perform redirects with click tracking
 
-**Runtime**: `provided.al2` (Custom Rust runtime)
+**Runtime**: `provided.al2023` (Custom Rust runtime)
 
 **Memory**: 256MB
 
@@ -306,7 +306,7 @@ resource "aws_lambda_function" "function" {
   function_name    = var.function_name
   role            = aws_iam_role.lambda_exec.arn
   handler         = "bootstrap"
-  runtime         = "provided.al2"
+  runtime         = "provided.al2023"
   
   memory_size = var.memory_size
   timeout     = var.timeout
